@@ -306,11 +306,15 @@ struct PublicNetworkCard: View {
                         [vpn.name, vpn.interface, vpn.fullTunnel ? "tutto il traffico" : "traffico parziale"].compactMap { $0 }.joined(separator: " · ")
                     })
                 if let vpn = service.vpn { row("IP della VPN", vpn.address, detail: nil) }
+                if service.vpn != nil, settings.showVPNCountry, let ip = service.publicIP, let country = ip.country {
+                    row("Paese della VPN", (settings.showCountryFlag ? ip.flag.map { $0 + " " } ?? "" : "") + country, detail: nil)
+                }
             }
         }
         .onAppear(perform: update)
         .onReceive(tick) { _ in update() }
         .onChange(of: settings.publicIPEnabled) { _ in update() }
+        .onChange(of: settings.showVPNCountry) { _ in update() }
     }
 
     private var publicValue: String {
@@ -324,7 +328,8 @@ struct PublicNetworkCard: View {
     private func update() {
         let network = model.snapshot.network
         service.update(defaultInterface: network?.interface, localAddress: network?.ipAddress,
-                       publicIPEnabled: settings.publicIPEnabled, vpnEnabled: settings.showVPN)
+                       publicIPEnabled: settings.publicIPEnabled, vpnEnabled: settings.showVPN,
+                       vpnCountryEnabled: settings.showVPNCountry)
     }
 
     private func row(_ title: String, _ value: String, detail: String?) -> some View {

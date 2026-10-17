@@ -89,6 +89,7 @@ final class PublicNetworkService: ObservableObject {
     @Published private(set) var loading = false
 
     private var vpnNames: [String] = []
+    private var wantsIPv4 = true
     private var lastNamesCheck = Date.distantPast
     private var lastFetch = Date.distantPast
     private var lastSignature = ""
@@ -96,7 +97,7 @@ final class PublicNetworkService: ObservableObject {
     private static let staleAfter: TimeInterval = 5 * 60
 
     /// Called every few seconds while the Network tab is visible.
-    func update(defaultInterface: String?, localAddress: String?, publicIPEnabled: Bool, vpnEnabled: Bool) {
+    func update(defaultInterface: String?, localAddress: String?, publicIPEnabled: Bool, vpnEnabled: Bool, vpnCountryEnabled: Bool) {
         if vpnEnabled {
             if Date().timeIntervalSince(lastNamesCheck) > 30 {
                 lastNamesCheck = Date()
@@ -109,7 +110,10 @@ final class PublicNetworkService: ObservableObject {
         let status = (vpnEnabled || publicIPEnabled) ? VPNDetector.detect(defaultInterface: defaultInterface, names: vpnNames) : nil
         if status != vpn { vpn = vpnEnabled ? status : nil }
 
-        guard publicIPEnabled else {
+        // The VPN's country is the country of the address the internet sees while it's on, so it needs the same lookup.
+        let lookup = publicIPEnabled || (vpnEnabled && vpnCountryEnabled && status != nil)
+        wantsIPv4 = publicIPEnabled
+        guard lookup else {
             if publicIP != nil || error != nil { publicIP = nil; error = nil }
             task?.cancel()
             return
@@ -131,7 +135,7 @@ final class PublicNetworkService: ObservableObject {
             let parsed = data.flatMap(Self.parse)
             DispatchQueue.main.async {
                 guard let self else { return }
-                if let parsed, parsed.address.contains(":") {
+                if let parsed, parsed.address.contains(":"), self.wantsIPv4 {
                     // The Mac reached the service over IPv6: look the IPv4 address up separately.
                     self.fetchIPv4(for: parsed)
                     return

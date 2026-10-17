@@ -345,11 +345,12 @@ struct ModuleSettings: View {
             }
         case .network:
             SettingsSection(title: "IP pubblico e VPN",
-                            footnote: "L'IP pubblico si legge da ipwho.is (e l'IPv4, se il Mac usa IPv6, da api4.ipify.org), gratuiti e senza account: MenuStats fa una richiesta solo quando la scheda Rete è aperta, al massimo ogni 5 minuti o quando cambiano rete o VPN. È spento finché non lo attivi. Lo stato della VPN e il suo IP si leggono sul Mac, senza richieste. Con una VPN attiva l'IP pubblico è quello d'uscita della VPN.") {
+                            footnote: "L'IP pubblico si legge da ipwho.is (e l'IPv4, se il Mac usa IPv6, da api4.ipify.org), gratuiti e senza account: MenuStats fa una richiesta solo quando la scheda Rete è aperta, al massimo ogni 5 minuti o quando cambiano rete o VPN. È spento finché non lo attivi. Lo stato della VPN e il suo IP si leggono sul Mac, senza richieste. Con una VPN attiva l'IP pubblico è quello d'uscita della VPN, e il paese della VPN è quello di quell'indirizzo: per mostrarlo, a VPN attiva, MenuStats fa la stessa richiesta anche se l'IP pubblico è spento.") {
                 Toggle("Mostra l'IP pubblico", isOn: $settings.publicIPEnabled)
                 Toggle("Mostra la bandiera del paese", isOn: $settings.showCountryFlag).disabled(!settings.publicIPEnabled)
                 Toggle("Mostra anche l'IPv6", isOn: $settings.showIPv6).disabled(!settings.publicIPEnabled)
                 Toggle("Mostra se c'è una VPN e il suo IP", isOn: $settings.showVPN)
+                Toggle("Mostra il paese della VPN", isOn: $settings.showVPNCountry).disabled(!settings.showVPN)
             }
         case .weather:
             WeatherPlaceSettings(settings: settings, weather: model.weather, location: model.location)
