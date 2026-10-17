@@ -48,6 +48,8 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>CFBundleVersion</key><string>${BUILD_NUMBER}</string>
     <key>CFBundleIconFile</key><string>AppIcon</string>
     <key>CFBundleIconName</key><string>AppIcon</string>
+    <key>NSLocationUsageDescription</key><string>MenuStats usa la tua posizione, solo se scegli la modalità automatica, per mostrare il meteo della tua città.</string>
+    <key>NSLocationWhenInUseUsageDescription</key><string>MenuStats usa la tua posizione, solo se scegli la modalità automatica, per mostrare il meteo della tua città.</string>
     <key>NSHumanReadableCopyright</key><string>© 2026 Thomas Addamo</string>
     <key>LSMinimumSystemVersion</key><string>13.0</string>
     <key>LSUIElement</key><true/>

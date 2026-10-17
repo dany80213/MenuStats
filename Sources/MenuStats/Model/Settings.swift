@@ -226,6 +226,12 @@ enum WeatherStyle: String, StyleOption {
     var label: String { ["Icona e temperatura", "Solo temperatura", "Solo icona", "Città sopra la temperatura"][Self.allCases.firstIndex(of: self)!] }
 }
 
+/// Whether the weather place is typed by hand or found from the Mac's position.
+enum WeatherLocationMode: String, StyleOption {
+    case manual, automatic
+    var label: String { ["Manuale", "Automatica"][Self.allCases.firstIndex(of: self)!] }
+}
+
 /// The place the weather is shown for (chosen in Settings; only its coordinates are sent to Open-Meteo).
 struct WeatherLocation: Codable, Equatable, Identifiable {
     var name: String
@@ -287,6 +293,7 @@ final class Settings: ObservableObject {
     @Published var dateStyle: DateStyle { didSet { save(dateStyle.rawValue, "dateStyle") } }
     @Published var use24Hour: Bool { didSet { save(use24Hour, "use24Hour") } }
     @Published var weatherStyle: WeatherStyle { didSet { save(weatherStyle.rawValue, "weatherStyle") } }
+    @Published var weatherLocationMode: WeatherLocationMode { didSet { save(weatherLocationMode.rawValue, "weatherLocationMode") } }
     @Published var weatherLocation: WeatherLocation? {
         didSet {
             if let weatherLocation, let data = try? JSONEncoder().encode(weatherLocation) {
@@ -350,6 +357,7 @@ final class Settings: ObservableObject {
         dateStyle = string("dateStyle", DateStyle.dayTime)
         use24Hour = bool("use24Hour", true)
         weatherStyle = string("weatherStyle", WeatherStyle.iconTemperature)
+        weatherLocationMode = string("weatherLocationMode", WeatherLocationMode.manual)
         weatherLocation = defaults.data(forKey: "weatherLocation").flatMap { try? JSONDecoder().decode(WeatherLocation.self, from: $0) }
 
         cpuBusyThreshold = double("cpuBusyThreshold", 0.8)

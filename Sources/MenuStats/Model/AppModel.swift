@@ -27,6 +27,8 @@ final class AppModel: ObservableObject {
     let hardware = HardwareControl()
     /// Weather from Open-Meteo; idle (no network) unless the Weather module is enabled with a place chosen.
     let weather = WeatherService()
+    /// The Mac's city for the Weather module's automatic mode; idle unless that mode is on.
+    let location = LocationProvider()
     private(set) lazy var slowFeed = SlowFeed(model: self)
     private var lastSlowUpdate = Date.distantPast
     private let monitor = SystemMonitor()
@@ -48,9 +50,11 @@ final class AppModel: ObservableObject {
         Publishers.CombineLatest(settings.$enabledModules, settings.$moduleOrder)
             .sink { [weak self] enabled, order in self?.monitor.demand.menubar = Set(order.filter(enabled.contains)) }
             .store(in: &cancellables)
-        Publishers.CombineLatest(settings.$enabledModules, settings.$weatherLocation)
-            .sink { [weak self] enabled, location in
-                self?.weather.configure(enabled: enabled.contains(.weather), location: location)
+        Publishers.CombineLatest4(settings.$enabledModules, settings.$weatherLocationMode, settings.$weatherLocation, location.$place)
+            .sink { [weak self] enabled, mode, manual, detected in
+                let weatherOn = enabled.contains(.weather)
+                self?.location.setActive(weatherOn && mode == .automatic)
+                self?.weather.configure(enabled: weatherOn, location: mode == .automatic ? detected : manual)
             }
             .store(in: &cancellables)
         settings.$hiddenSections

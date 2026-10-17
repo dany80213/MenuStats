@@ -22,6 +22,7 @@ let package = Package(
                 .linkedFramework("IOKit"),
                 .linkedFramework("SystemConfiguration"),
                 .linkedFramework("ServiceManagement"),
+                .linkedFramework("CoreLocation"),
                 .linkedLibrary("sqlite3"),
             ]
         ),

@@ -13,6 +13,10 @@ enum SystemActions {
         }
     }
 
+    static func openLocationSettings() {
+        open("x-apple.systempreferences:com.apple.preference.security?Privacy_LocationServices")
+    }
+
     static func openBatterySettings() {
         open("x-apple.systempreferences:com.apple.Battery-Settings.extension")
     }
