@@ -145,6 +145,6 @@ final class PublicNetworkService: ObservableObject {
               root["success"] as? Bool != false, let ip = root["ip"] as? String else { return nil }
         let connection = root["connection"] as? [String: Any]
         return PublicIP(address: ip, country: root["country"] as? String, countryCode: root["country_code"] as? String,
-                        provider: (connection?["isp"] as? String) ?? (connection?["org"] as? String))
+                        provider: (connection?["org"] as? String) ?? (connection?["isp"] as? String))
     }
 }
