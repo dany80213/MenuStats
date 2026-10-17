@@ -54,7 +54,7 @@ final class AppModel: ObservableObject {
             .sink { [weak self] enabled, mode, manual, detected in
                 let weatherOn = enabled.contains(.weather)
                 self?.location.setActive(weatherOn && mode == .automatic)
-                self?.weather.configure(enabled: weatherOn, location: mode == .automatic ? detected : manual)
+                self?.weather.configure(enabled: weatherOn, location: mode == .automatic ? (detected ?? manual) : manual)
             }
             .store(in: &cancellables)
         settings.$hiddenSections

@@ -18,9 +18,14 @@ final class LocationProvider: NSObject, ObservableObject, CLLocationManagerDeleg
     private var timer: Timer?
     private var wakeObserver: NSObjectProtocol?
     private var active = false
+    private var retries = 0
+    private var retryWork: DispatchWorkItem?
     private static let refreshInterval: TimeInterval = 30 * 60
     /// Moves smaller than this keep the same place, so the forecast isn't reloaded for GPS noise.
     private static let minimumMove: CLLocationDistance = 3000
+    /// macOS often answers "position unknown" right after the request; retry soon instead of waiting for the next refresh.
+    private static let retryDelay: TimeInterval = 10
+    private static let maxRetries = 6
 
     override init() {
         super.init()
@@ -51,6 +56,8 @@ final class LocationProvider: NSObject, ObservableObject, CLLocationManagerDeleg
         if let wakeObserver { NSWorkspace.shared.notificationCenter.removeObserver(wakeObserver) }
         wakeObserver = nil
         geocoder.cancelGeocode()
+        retryWork?.cancel()
+        retries = 0
         place = nil
         status = .idle
     }
@@ -75,6 +82,7 @@ final class LocationProvider: NSObject, ObservableObject, CLLocationManagerDeleg
 
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard active, let location = locations.last else { return }
+        retries = 0
         if let place, CLLocation(latitude: place.latitude, longitude: place.longitude).distance(from: location) < Self.minimumMove {
             status = .idle
             return
@@ -101,5 +109,11 @@ final class LocationProvider: NSObject, ObservableObject, CLLocationManagerDeleg
         } else if place == nil {
             status = .failed
         }
+        guard retries < Self.maxRetries else { return }
+        retries += 1
+        retryWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in self?.locate() }
+        retryWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.retryDelay, execute: work)
     }
 }
