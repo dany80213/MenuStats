@@ -35,6 +35,43 @@ extension View {
             Button("Nascondi “\(section.title)”") { Settings.shared.setShown(section, false) }
             Text("Puoi riattivarla in Impostazioni ▸ \(section.module.name)")
         }
+        .layoutValue(key: SectionRank.self, value: Settings.shared.rank(of: section))
+    }
+}
+
+/// Where a dropdown section sits in the user's order (nil: not movable, stays where it is).
+struct SectionRank: LayoutValueKey {
+    static let defaultValue: Int? = nil
+}
+
+/// A vertical stack that shows the sections carrying a `SectionRank` in the user's order. Views without a rank
+/// (a tab's top card) keep their own place; the ranked ones are sorted among the places the ranked views took.
+struct OrderedStack: Layout {
+    var spacing: CGFloat = 8
+
+    private func order(_ subviews: Subviews) -> [Int] {
+        let ranked = subviews.indices.filter { subviews[$0][SectionRank.self] != nil }
+        let sorted = ranked.sorted { (subviews[$0][SectionRank.self] ?? 0) < (subviews[$1][SectionRank.self] ?? 0) }
+        var result = Array(subviews.indices)
+        for (slot, index) in zip(ranked, sorted) { result[slot] = index }
+        return result
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let width = proposal.width
+        let sizes = subviews.map { $0.sizeThatFits(.init(width: width, height: nil)) }
+        let height = sizes.map(\.height).reduce(0, +) + spacing * CGFloat(max(subviews.count - 1, 0))
+        return CGSize(width: width ?? (sizes.map(\.width).max() ?? 0), height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var y = bounds.minY
+        for index in order(subviews) {
+            let size = subviews[index].sizeThatFits(.init(width: bounds.width, height: nil))
+            subviews[index].place(at: CGPoint(x: bounds.minX, y: y), anchor: .topLeading,
+                                  proposal: .init(width: bounds.width, height: size.height))
+            y += size.height + spacing
+        }
     }
 }
 

@@ -30,6 +30,7 @@ enum UITestRenderer {
             ("general", AnyView(GeneralSettings(settings: settings))),
             ("menubar", AnyView(MenubarSettings(model: model, snapshot: model.snapshot, settings: settings))),
             ("cpu", AnyView(ModuleSettings(module: .cpu, model: model, snapshot: model.snapshot, settings: settings))),
+            ("network", AnyView(ModuleSettings(module: .network, model: model, snapshot: model.snapshot, settings: settings))),
             ("fans", AnyView(ModuleSettings(module: .fans, model: model, snapshot: model.snapshot, settings: settings))),
             ("notifications", AnyView(NotificationSettings(settings: settings))),
         ]

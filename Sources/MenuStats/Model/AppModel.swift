@@ -29,6 +29,8 @@ final class AppModel: ObservableObject {
     let weather = WeatherService()
     /// The Mac's city for the Weather module's automatic mode; idle unless that mode is on.
     let location = LocationProvider()
+    /// Public IP and VPN for the Network tab; idle unless that tab is open.
+    let publicNetwork = PublicNetworkService()
     private(set) lazy var slowFeed = SlowFeed(model: self)
     private var lastSlowUpdate = Date.distantPast
     private let monitor = SystemMonitor()

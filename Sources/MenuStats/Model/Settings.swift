@@ -100,11 +100,19 @@ enum PanelSection: String, CaseIterable, Identifiable, Codable {
     case cpuChart, cpuCores, cpuLoad, cpuProcesses
     case memoryComposition, memoryCharts, memoryProcesses
     case diskVolumes, diskChart, diskProcesses
-    case networkChart, networkConnection, networkApps
+    case networkChart, networkConnection, networkPublic, networkApps
     case sensorsChart, sensorsFans, sensorsGrid
     case batteryCharts, batteryHealth, batteryPower, batteryControls
 
     var id: String { rawValue }
+
+    /// Sections that sit inside a module's top card can't be moved; every other one can.
+    var isOrderable: Bool {
+        switch self {
+        case .cpuChart, .memoryComposition, .networkChart, .sensorsChart, .batteryCharts: false
+        default: true
+        }
+    }
 
     var title: String {
         switch self {
@@ -120,6 +128,7 @@ enum PanelSection: String, CaseIterable, Identifiable, Codable {
         case .diskProcesses: "Processi"
         case .networkChart: "Grafico traffico"
         case .networkConnection: "Connessione"
+        case .networkPublic: "IP pubblico e VPN"
         case .networkApps: "App (download + upload)"
         case .sensorsChart: "Grafico temperature"
         case .sensorsFans: "Ventole e alimentazione"
@@ -136,6 +145,7 @@ enum PanelSection: String, CaseIterable, Identifiable, Codable {
         switch self {
         case .cpuProcesses, .memoryProcesses, .diskProcesses: "non elenca i processi"
         case .networkApps: "non avvia nettop"
+        case .networkPublic: "non cerca l'IP pubblico né la VPN"
         case .sensorsGrid: "non legge tutti i sensori né la GPU"
         case .diskVolumes: "non calcola lo spazio eliminabile"
         case .sensorsFans: "legge ventole e consumo più di rado"
@@ -148,7 +158,7 @@ enum PanelSection: String, CaseIterable, Identifiable, Codable {
         case .cpuChart, .cpuCores, .cpuLoad, .cpuProcesses: .cpu
         case .memoryComposition, .memoryCharts, .memoryProcesses: .memory
         case .diskVolumes, .diskChart, .diskProcesses: .disk
-        case .networkChart, .networkConnection, .networkApps: .network
+        case .networkChart, .networkConnection, .networkPublic, .networkApps: .network
         case .sensorsChart, .sensorsFans, .sensorsGrid: .sensors
         case .batteryCharts, .batteryHealth, .batteryPower, .batteryControls: .battery
         }
@@ -276,6 +286,11 @@ final class Settings: ObservableObject {
     }
     @Published var processCount: Int { didSet { save(processCount, "processCount") } }
     @Published var groupProcessesByApp: Bool { didSet { save(groupProcessesByApp, "groupProcessesByApp") } }
+    /// Order of the dropdown's sections (the top card of each tab always stays first).
+    @Published var sectionOrder: [PanelSection] { didSet { save(sectionOrder.map(\.rawValue), "sectionOrder") } }
+    @Published var publicIPEnabled: Bool { didSet { save(publicIPEnabled, "publicIPEnabled") } }
+    @Published var showCountryFlag: Bool { didSet { save(showCountryFlag, "showCountryFlag") } }
+    @Published var showVPN: Bool { didSet { save(showVPN, "showVPN") } }
     @Published var hiddenSections: Set<PanelSection> { didSet { save(hiddenSections.map(\.rawValue), "hiddenSections") } }
 
     // Menu bar modules
@@ -340,6 +355,11 @@ final class Settings: ObservableObject {
         })
         processCount = defaults.object(forKey: "processCount") as? Int ?? 5
         groupProcessesByApp = bool("groupProcessesByApp", true)
+        let savedSections = (defaults.stringArray(forKey: "sectionOrder") ?? []).compactMap(PanelSection.init(rawValue:))
+        sectionOrder = savedSections + PanelSection.allCases.filter { !savedSections.contains($0) }
+        publicIPEnabled = bool("publicIPEnabled", false)
+        showCountryFlag = bool("showCountryFlag", true)
+        showVPN = bool("showVPN", true)
         hiddenSections = Set((defaults.stringArray(forKey: "hiddenSections") ?? []).compactMap(PanelSection.init(rawValue:)))
 
         let savedOrder = (defaults.stringArray(forKey: "moduleOrder") ?? []).compactMap(ModuleID.init(rawValue:))
@@ -392,6 +412,26 @@ final class Settings: ObservableObject {
     func isEnabled(_ module: ModuleID) -> Bool { enabledModules.contains(module) }
 
     func shows(_ section: PanelSection) -> Bool { !hiddenSections.contains(section) }
+
+    /// Position of a section in the dropdown order.
+    func rank(of section: PanelSection) -> Int { sectionOrder.firstIndex(of: section) ?? Int.max }
+
+    /// The movable sections of a tab, in the user's order.
+    func orderedSections(in tab: DashboardTab) -> [PanelSection] {
+        sectionOrder.filter { $0.tab == tab && $0.isOrderable }
+    }
+
+    /// Reorders one tab's sections; the other tabs keep their places.
+    func moveSections(in tab: DashboardTab, from source: IndexSet, to destination: Int) {
+        var moved = orderedSections(in: tab)
+        moved.move(fromOffsets: source, toOffset: destination)
+        var queue = moved[...]
+        sectionOrder = sectionOrder.map { section in
+            guard section.tab == tab, section.isOrderable, let next = queue.first else { return section }
+            queue = queue.dropFirst()
+            return next
+        }
+    }
 
     func setShown(_ section: PanelSection, _ shown: Bool) {
         if shown { hiddenSections.remove(section) } else { hiddenSections.insert(section) }

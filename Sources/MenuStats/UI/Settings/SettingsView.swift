@@ -297,6 +297,25 @@ struct ModuleSettings: View {
                     }
                 }
             }
+            let movable = settings.orderedSections(in: module.tab)
+            if module != .fans, movable.count > 1 {
+                SettingsSection(title: "Ordine delle sezioni",
+                                footnote: "Trascina per cambiare l'ordine in cui compaiono nella tendina di \(module.name). La scheda in alto resta sempre per prima.") {
+                    List {
+                        ForEach(movable) { section in
+                            HStack(spacing: 10) {
+                                Image(systemName: "line.3.horizontal").foregroundStyle(.tertiary)
+                                Text(section.title)
+                                Spacer()
+                            }
+                            .opacity(settings.shows(section) ? 1 : 0.4)
+                        }
+                        .onMove { settings.moveSections(in: module.tab, from: $0, to: $1) }
+                    }
+                    .frame(height: CGFloat(movable.count) * 30 + 8)
+                    .scrollDisabled(true)
+                }
+            }
             extra
         }
     }
@@ -342,6 +361,13 @@ struct ModuleSettings: View {
         case .date:
             SettingsSection(title: "Formato") {
                 Toggle("Formato 24 ore", isOn: $settings.use24Hour)
+            }
+        case .network:
+            SettingsSection(title: "IP pubblico e VPN",
+                            footnote: "L'IP pubblico si legge da ipwho.is (gratuito, senza account): MenuStats fa una richiesta solo quando la scheda Rete è aperta, al massimo ogni 5 minuti o quando cambiano rete o VPN. È spento finché non lo attivi. Lo stato della VPN e il suo IP si leggono sul Mac, senza richieste. Con una VPN attiva l'IP pubblico è quello d'uscita della VPN.") {
+                Toggle("Mostra l'IP pubblico", isOn: $settings.publicIPEnabled)
+                Toggle("Mostra la bandiera del paese", isOn: $settings.showCountryFlag).disabled(!settings.publicIPEnabled)
+                Toggle("Mostra se c'è una VPN e il suo IP", isOn: $settings.showVPN)
             }
         case .weather:
             WeatherPlaceSettings(settings: settings, weather: model.weather, location: model.location)

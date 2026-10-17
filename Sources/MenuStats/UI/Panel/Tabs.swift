@@ -8,7 +8,7 @@ struct CPUTab: View {
 
     var body: some View {
         let snapshot = model.snapshot
-        VStack(spacing: 8) {
+        OrderedStack(spacing: 8) {
             if let cpu = snapshot.cpu {
                 Card {
                     HStack(alignment: .top) {
@@ -113,7 +113,7 @@ struct MemoryTab: View {
 
     var body: some View {
         let snapshot = model.snapshot
-        VStack(spacing: 8) {
+        OrderedStack(spacing: 8) {
             if let memory = snapshot.memory {
                 Card {
                     HStack(alignment: .top) {
@@ -161,7 +161,7 @@ struct DiskTab: View {
 
     var body: some View {
         let snapshot = model.snapshot
-        VStack(spacing: 8) {
+        OrderedStack(spacing: 8) {
             if settings.shows(.diskVolumes) {
                 Card(title: "Volumi") {
                     VStack(spacing: 12) {
@@ -230,7 +230,7 @@ struct NetworkTab: View {
 
     var body: some View {
         let snapshot = model.snapshot
-        VStack(spacing: 8) {
+        OrderedStack(spacing: 8) {
             if let network = snapshot.network {
                 Card {
                     HStack {
@@ -259,6 +259,10 @@ struct NetworkTab: View {
                 .hideable(.networkConnection)
                 }
             }
+            if settings.shows(.networkPublic), settings.publicIPEnabled || settings.showVPN {
+                PublicNetworkCard(model: model, settings: settings)
+                    .hideable(.networkPublic)
+            }
             if settings.shows(.networkApps) {
                 Card(title: "App", trailing: "download + upload") {
                     ProcessList(rows: ProcessGrouping.networkGroups(model.networkProcesses, processes: snapshot.processes,
@@ -277,6 +281,66 @@ struct NetworkTab: View {
     }
 }
 
+/// Public IP (with country flag) and VPN status, each switchable in Settings ▸ Rete.
+struct PublicNetworkCard: View {
+    @ObservedObject var model: AppModel
+    @ObservedObject var settings: Settings
+    @ObservedObject private var service: PublicNetworkService
+    private let tick = Timer.publish(every: 5, on: .main, in: .common).autoconnect()
+
+    init(model: AppModel, settings: Settings) {
+        self.model = model
+        self.settings = settings
+        _service = ObservedObject(wrappedValue: model.publicNetwork)
+    }
+
+    var body: some View {
+        Card(title: "IP pubblico e VPN") {
+            if settings.publicIPEnabled {
+                row("IP pubblico", publicValue, detail: service.publicIP.flatMap { [$0.country, $0.provider].compactMap { $0 }.joined(separator: " · ") })
+            }
+            if settings.showVPN {
+                row("VPN", service.vpn == nil ? "Non attiva" : "Attiva",
+                    detail: service.vpn.map { vpn in
+                        [vpn.name, vpn.interface, vpn.fullTunnel ? "tutto il traffico" : "traffico parziale"].compactMap { $0 }.joined(separator: " · ")
+                    })
+                if let vpn = service.vpn { row("IP della VPN", vpn.address, detail: nil) }
+            }
+        }
+        .onAppear(perform: update)
+        .onReceive(tick) { _ in update() }
+        .onChange(of: settings.publicIPEnabled) { _ in update() }
+    }
+
+    private var publicValue: String {
+        if let ip = service.publicIP {
+            let flag = settings.showCountryFlag ? ip.flag.map { $0 + " " } ?? "" : ""
+            return flag + ip.address
+        }
+        return service.error ?? "…"
+    }
+
+    private func update() {
+        let network = model.snapshot.network
+        service.update(defaultInterface: network?.interface, localAddress: network?.ipAddress,
+                       publicIPEnabled: settings.publicIPEnabled, vpnEnabled: settings.showVPN)
+    }
+
+    private func row(_ title: String, _ value: String, detail: String?) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            HStack(spacing: 4) {
+                Text(title).foregroundStyle(.secondary)
+                Spacer(minLength: 4)
+                Text(value).monospacedDigit().lineLimit(1).minimumScaleFactor(0.65).truncationMode(.middle).textSelection(.enabled)
+            }
+            .font(.system(size: 11.5))
+            if let detail, !detail.isEmpty {
+                Text(detail).font(.system(size: 10)).foregroundStyle(.tertiary).frame(maxWidth: .infinity, alignment: .trailing)
+            }
+        }
+    }
+}
+
 // MARK: - Sensors
 
 struct SensorsTab: View {
@@ -286,7 +350,7 @@ struct SensorsTab: View {
     var body: some View {
         let snapshot = model.snapshot
         let sensors = snapshot.sensors
-        VStack(spacing: 8) {
+        OrderedStack(spacing: 8) {
             Card {
                 HStack(alignment: .top) {
                     Hero(value: snapshot.cpuTemperature.map { Format.temperature($0) } ?? "—",
@@ -482,7 +546,7 @@ struct BatteryTab: View {
 
     var body: some View {
         let snapshot = model.snapshot
-        VStack(spacing: 8) {
+        OrderedStack(spacing: 8) {
             if let battery = snapshot.battery {
                 Card {
                     HStack(alignment: .top) {
