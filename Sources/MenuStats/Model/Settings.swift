@@ -279,6 +279,7 @@ final class Settings: ObservableObject {
     @Published var processCount: Int { didSet { save(processCount, "processCount") } }
     @Published var groupProcessesByApp: Bool { didSet { save(groupProcessesByApp, "groupProcessesByApp") } }
     @Published var publicIPEnabled: Bool { didSet { save(publicIPEnabled, "publicIPEnabled") } }
+    @Published var showIPv6: Bool { didSet { save(showIPv6, "showIPv6") } }
     @Published var showCountryFlag: Bool { didSet { save(showCountryFlag, "showCountryFlag") } }
     @Published var showVPN: Bool { didSet { save(showVPN, "showVPN") } }
     @Published var hiddenSections: Set<PanelSection> { didSet { save(hiddenSections.map(\.rawValue), "hiddenSections") } }
@@ -346,6 +347,7 @@ final class Settings: ObservableObject {
         processCount = defaults.object(forKey: "processCount") as? Int ?? 5
         groupProcessesByApp = bool("groupProcessesByApp", true)
         publicIPEnabled = bool("publicIPEnabled", false)
+        showIPv6 = bool("showIPv6", true)
         showCountryFlag = bool("showCountryFlag", true)
         showVPN = bool("showVPN", true)
         hiddenSections = Set((defaults.stringArray(forKey: "hiddenSections") ?? []).compactMap(PanelSection.init(rawValue:)))

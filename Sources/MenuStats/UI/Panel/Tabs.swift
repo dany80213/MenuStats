@@ -298,7 +298,7 @@ struct PublicNetworkCard: View {
         Card(title: "IP pubblico e VPN") {
             if settings.publicIPEnabled {
                 row("IP pubblico", publicValue, detail: service.publicIP.flatMap { [$0.country, $0.provider].compactMap { $0 }.joined(separator: " · ") })
-                if let v6 = service.publicIP?.ipv6 { row("IPv6", v6, detail: nil) }
+                if settings.showIPv6, let v6 = service.publicIP?.ipv6 { row("IPv6", v6, detail: nil) }
             }
             if settings.showVPN {
                 row("VPN", service.vpn == nil ? "Non attiva" : "Attiva",

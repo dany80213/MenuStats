@@ -348,6 +348,7 @@ struct ModuleSettings: View {
                             footnote: "L'IP pubblico si legge da ipwho.is (e l'IPv4, se il Mac usa IPv6, da api4.ipify.org), gratuiti e senza account: MenuStats fa una richiesta solo quando la scheda Rete è aperta, al massimo ogni 5 minuti o quando cambiano rete o VPN. È spento finché non lo attivi. Lo stato della VPN e il suo IP si leggono sul Mac, senza richieste. Con una VPN attiva l'IP pubblico è quello d'uscita della VPN.") {
                 Toggle("Mostra l'IP pubblico", isOn: $settings.publicIPEnabled)
                 Toggle("Mostra la bandiera del paese", isOn: $settings.showCountryFlag).disabled(!settings.publicIPEnabled)
+                Toggle("Mostra anche l'IPv6", isOn: $settings.showIPv6).disabled(!settings.publicIPEnabled)
                 Toggle("Mostra se c'è una VPN e il suo IP", isOn: $settings.showVPN)
             }
         case .weather:
