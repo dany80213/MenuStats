@@ -106,14 +106,6 @@ enum PanelSection: String, CaseIterable, Identifiable, Codable {
 
     var id: String { rawValue }
 
-    /// Sections that sit inside a module's top card can't be moved; every other one can.
-    var isOrderable: Bool {
-        switch self {
-        case .cpuChart, .memoryComposition, .networkChart, .sensorsChart, .batteryCharts: false
-        default: true
-        }
-    }
-
     var title: String {
         switch self {
         case .cpuChart: "Grafico utilizzo"
@@ -286,8 +278,6 @@ final class Settings: ObservableObject {
     }
     @Published var processCount: Int { didSet { save(processCount, "processCount") } }
     @Published var groupProcessesByApp: Bool { didSet { save(groupProcessesByApp, "groupProcessesByApp") } }
-    /// Order of the dropdown's sections (the top card of each tab always stays first).
-    @Published var sectionOrder: [PanelSection] { didSet { save(sectionOrder.map(\.rawValue), "sectionOrder") } }
     @Published var publicIPEnabled: Bool { didSet { save(publicIPEnabled, "publicIPEnabled") } }
     @Published var showCountryFlag: Bool { didSet { save(showCountryFlag, "showCountryFlag") } }
     @Published var showVPN: Bool { didSet { save(showVPN, "showVPN") } }
@@ -355,8 +345,6 @@ final class Settings: ObservableObject {
         })
         processCount = defaults.object(forKey: "processCount") as? Int ?? 5
         groupProcessesByApp = bool("groupProcessesByApp", true)
-        let savedSections = (defaults.stringArray(forKey: "sectionOrder") ?? []).compactMap(PanelSection.init(rawValue:))
-        sectionOrder = savedSections + PanelSection.allCases.filter { !savedSections.contains($0) }
         publicIPEnabled = bool("publicIPEnabled", false)
         showCountryFlag = bool("showCountryFlag", true)
         showVPN = bool("showVPN", true)
@@ -412,26 +400,6 @@ final class Settings: ObservableObject {
     func isEnabled(_ module: ModuleID) -> Bool { enabledModules.contains(module) }
 
     func shows(_ section: PanelSection) -> Bool { !hiddenSections.contains(section) }
-
-    /// Position of a section in the dropdown order.
-    func rank(of section: PanelSection) -> Int { sectionOrder.firstIndex(of: section) ?? Int.max }
-
-    /// The movable sections of a tab, in the user's order.
-    func orderedSections(in tab: DashboardTab) -> [PanelSection] {
-        sectionOrder.filter { $0.tab == tab && $0.isOrderable }
-    }
-
-    /// Reorders one tab's sections; the other tabs keep their places.
-    func moveSections(in tab: DashboardTab, from source: IndexSet, to destination: Int) {
-        var moved = orderedSections(in: tab)
-        moved.move(fromOffsets: source, toOffset: destination)
-        var queue = moved[...]
-        sectionOrder = sectionOrder.map { section in
-            guard section.tab == tab, section.isOrderable, let next = queue.first else { return section }
-            queue = queue.dropFirst()
-            return next
-        }
-    }
 
     func setShown(_ section: PanelSection, _ shown: Bool) {
         if shown { hiddenSections.remove(section) } else { hiddenSections.insert(section) }

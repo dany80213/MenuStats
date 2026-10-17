@@ -8,7 +8,7 @@ struct CPUTab: View {
 
     var body: some View {
         let snapshot = model.snapshot
-        OrderedStack(spacing: 8) {
+        VStack(spacing: 8) {
             if let cpu = snapshot.cpu {
                 Card {
                     HStack(alignment: .top) {
@@ -113,7 +113,7 @@ struct MemoryTab: View {
 
     var body: some View {
         let snapshot = model.snapshot
-        OrderedStack(spacing: 8) {
+        VStack(spacing: 8) {
             if let memory = snapshot.memory {
                 Card {
                     HStack(alignment: .top) {
@@ -161,7 +161,7 @@ struct DiskTab: View {
 
     var body: some View {
         let snapshot = model.snapshot
-        OrderedStack(spacing: 8) {
+        VStack(spacing: 8) {
             if settings.shows(.diskVolumes) {
                 Card(title: "Volumi") {
                     VStack(spacing: 12) {
@@ -230,7 +230,7 @@ struct NetworkTab: View {
 
     var body: some View {
         let snapshot = model.snapshot
-        OrderedStack(spacing: 8) {
+        VStack(spacing: 8) {
             if let network = snapshot.network {
                 Card {
                     HStack {
@@ -298,6 +298,7 @@ struct PublicNetworkCard: View {
         Card(title: "IP pubblico e VPN") {
             if settings.publicIPEnabled {
                 row("IP pubblico", publicValue, detail: service.publicIP.flatMap { [$0.country, $0.provider].compactMap { $0 }.joined(separator: " · ") })
+                if let v6 = service.publicIP?.ipv6 { row("IPv6", v6, detail: nil) }
             }
             if settings.showVPN {
                 row("VPN", service.vpn == nil ? "Non attiva" : "Attiva",
@@ -350,7 +351,7 @@ struct SensorsTab: View {
     var body: some View {
         let snapshot = model.snapshot
         let sensors = snapshot.sensors
-        OrderedStack(spacing: 8) {
+        VStack(spacing: 8) {
             Card {
                 HStack(alignment: .top) {
                     Hero(value: snapshot.cpuTemperature.map { Format.temperature($0) } ?? "—",
@@ -546,7 +547,7 @@ struct BatteryTab: View {
 
     var body: some View {
         let snapshot = model.snapshot
-        OrderedStack(spacing: 8) {
+        VStack(spacing: 8) {
             if let battery = snapshot.battery {
                 Card {
                     HStack(alignment: .top) {

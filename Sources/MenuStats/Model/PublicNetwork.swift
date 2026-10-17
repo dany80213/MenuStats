@@ -64,7 +64,10 @@ enum VPNDetector {
 }
 
 struct PublicIP: Equatable {
+    /// The IPv4 address when there is one, otherwise whatever address the Mac connects with.
     var address: String
+    /// The IPv6 address, shown on its own line when the Mac has both.
+    var ipv6: String?
     var country: String?
     var countryCode: String?
     var provider: String?
@@ -128,6 +131,11 @@ final class PublicNetworkService: ObservableObject {
             let parsed = data.flatMap(Self.parse)
             DispatchQueue.main.async {
                 guard let self else { return }
+                if let parsed, parsed.address.contains(":") {
+                    // The Mac reached the service over IPv6: look the IPv4 address up separately.
+                    self.fetchIPv4(for: parsed)
+                    return
+                }
                 self.loading = false
                 if let parsed {
                     self.publicIP = parsed
@@ -135,6 +143,27 @@ final class PublicNetworkService: ObservableObject {
                 } else if (error as? URLError)?.code != .cancelled {
                     self.error = "IP pubblico non disponibile"
                 }
+            }
+        }
+        task?.resume()
+    }
+
+    /// api4.ipify.org answers only over IPv4, so it returns the IPv4 address even when IPv6 is preferred.
+    private func fetchIPv4(for v6: PublicIP) {
+        var request = URLRequest(url: URL(string: "https://api4.ipify.org?format=json")!)
+        request.timeoutInterval = 8
+        task = URLSession.shared.dataTask(with: request) { [weak self] data, _, _ in
+            let v4 = (data.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] })?["ip"] as? String
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.loading = false
+                var result = v6
+                if let v4 {
+                    result.address = v4
+                    result.ipv6 = v6.address
+                }
+                self.publicIP = result
+                self.error = nil
             }
         }
         task?.resume()
