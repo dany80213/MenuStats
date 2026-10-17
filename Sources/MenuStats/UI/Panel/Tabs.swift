@@ -305,9 +305,9 @@ struct PublicNetworkCard: View {
                     detail: service.vpn.map { vpn in
                         [vpn.name, vpn.interface, vpn.fullTunnel ? "tutto il traffico" : "traffico parziale"].compactMap { $0 }.joined(separator: " · ")
                     })
-                if let vpn = service.vpn { row("IP della VPN", vpn.address, detail: nil) }
-                if service.vpn != nil, settings.showVPNCountry, let ip = service.publicIP, let country = ip.country {
-                    row("Paese della VPN", (settings.showCountryFlag ? ip.flag.map { $0 + " " } ?? "" : "") + country, detail: nil)
+                if let vpn = service.vpn {
+                    let flag = settings.showVPNCountry ? service.publicIP?.flag.map { $0 + " " } ?? "" : ""
+                    row("IP della VPN", flag + vpn.address, detail: nil)
                 }
             }
         }
