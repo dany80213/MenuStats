@@ -102,4 +102,16 @@ final class AIAgentMatchTests: XCTestCase {
         XCTAssertEqual(AwakeController.parseDisplaySleep(output), 5)
         XCTAssertNil(AwakeController.parseDisplaySleep("nothing here"))
     }
+
+    func testAnItemAboveADisplayWithAHiddenMenuBarIsNotOutOfRoom() {
+        // Measured with an HP 24o left of a U27B3A whose bar was hidden by an app in full screen.
+        let screens = [CGRect(x: -1920, y: 360, width: 1920, height: 1080), CGRect(x: 0, y: 0, width: 2560, height: 1440)]
+        XCTAssertTrue(MenubarFit.isOverHiddenMenuBar(CGRect(x: 1967, y: 1472, width: 488, height: 30), screens: screens))
+        XCTAssertFalse(MenubarFit.isOverHiddenMenuBar(CGRect(x: -593, y: 1410, width: 488, height: 30), screens: screens),
+                       "in the HP's menu bar")
+        XCTAssertFalse(MenubarFit.isOverHiddenMenuBar(CGRect(x: 2076, y: 1410, width: 484, height: 30), screens: screens),
+                       "in the U27B3A's menu bar")
+        XCTAssertFalse(MenubarFit.isOverHiddenMenuBar(CGRect(x: -2600, y: 1410, width: 488, height: 30), screens: screens),
+                       "pushed off every display")
+    }
 }

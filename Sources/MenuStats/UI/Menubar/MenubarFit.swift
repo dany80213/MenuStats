@@ -51,6 +51,14 @@ enum MenubarFit {
         return min(wider, current)
     }
 
+    /// With several displays the items follow the active one. When its menu bar is hidden (an app in full screen,
+    /// or the bar set to hide automatically) macOS parks them just above that display's top edge: that isn't lack
+    /// of room, and nothing can be judged until the bar shows again. Frames in Cocoa coordinates (origin bottom left).
+    static func isOverHiddenMenuBar(_ frame: CGRect, screens: [CGRect]) -> Bool {
+        guard !screens.contains(where: { $0.intersects(frame) }) else { return false }
+        return screens.contains { $0.minX <= frame.midX && frame.midX <= $0.maxX && abs(frame.minY - $0.maxY) <= frame.height * 2 }
+    }
+
     /// Points between the notch's right edge and the right edge of MenuStats' items: what they may use.
     /// nil on displays without a notch, where the room depends on the front app's menus and can't be measured.
     static func room(rightEdge: CGFloat, notchRightEdge: CGFloat?) -> CGFloat? {

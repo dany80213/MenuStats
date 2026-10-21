@@ -250,6 +250,7 @@ final class StatusBarController: NSObject {
     /// Ordered out, off screen or behind the notch: macOS had no room for it.
     private func isOutOfRoom(_ window: NSWindow) -> Bool {
         let frame = window.frame
+        if Self.isOverHiddenMenuBar(frame) { return false }
         if Self.isHiddenInPlace(frame) { return true }
         guard let screen = window.screen ?? NSScreen.screens.first(where: { $0.frame.intersects(frame) }) else { return true }
         if frame.maxX <= screen.frame.minX || frame.minX >= screen.frame.maxX { return true }
@@ -261,13 +262,19 @@ final class StatusBarController: NSObject {
     /// On macOS 26 an item that no longer fits (say, once the microphone indicator appears) can be hidden where it
     /// stands, its frame unchanged; only the window server's on-screen flag tells. The menu bar windows belong to
     /// Control Center there, so the item is looked up by its bounds. False when no such window is listed (older
-    /// systems rely on the frame) and when no menu bar icon is on screen at all (display asleep, full-screen app).
+    /// systems rely on the frame) and when no other icon of the same menu bar is on screen (display asleep, bar hidden).
+    private static func isOverHiddenMenuBar(_ frame: NSRect) -> Bool {
+        MenubarFit.isOverHiddenMenuBar(frame, screens: NSScreen.screens.map(\.frame))
+    }
+
     private static func isHiddenInPlace(_ frame: NSRect) -> Bool {
         guard let primary = NSScreen.screens.first,
               let list = CGWindowListCopyWindowInfo([.optionAll, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]]
         else { return false }
         let top = primary.frame.maxY - frame.maxY // window server coordinates start at the top left
         let level = Int(CGWindowLevelForKey(.statusWindow))
+        // Only the icons in the same menu bar count: each display has its own, and one may be hidden.
+        let display = NSScreen.screens.first { $0.frame.minX <= frame.midX && frame.midX <= $0.frame.maxX }?.frame
         var found = false, shown = false, othersShown = false
         for info in list where info[kCGWindowLayer as String] as? Int == level {
             guard let dict = info[kCGWindowBounds as String] as? NSDictionary,
@@ -276,7 +283,7 @@ final class StatusBarController: NSObject {
             if abs(bounds.minX - frame.minX) < 1, abs(bounds.width - frame.width) < 1, abs(bounds.minY - top) < 1 {
                 found = true
                 shown = shown || onScreen
-            } else if onScreen {
+            } else if onScreen, abs(bounds.minY - top) < 1, display.map({ $0.minX <= bounds.midX && bounds.midX <= $0.maxX }) ?? true {
                 othersShown = true
             }
         }
