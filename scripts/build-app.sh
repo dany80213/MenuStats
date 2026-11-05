@@ -103,6 +103,20 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 </plist>
 PLIST
 
+# SwiftPM (Xcode 27) records the deployment target (13.0) as the SDK the binaries were built with. macOS then treats
+# MenuStats as an old app and draws its windows in compatibility mode (old buttons, lists and sidebar), so the
+# settings looked different depending on where the app was built. Record the real SDK, and refuse to ship otherwise.
+for BIN in "$APP/Contents/MacOS/MenuStats" "$APP/Contents/MacOS/MenuStatsHelper"; do
+    xcrun vtool -set-build-version macos 13.0 "$SDK_VERSION" -replace -output "$BIN.sdk" "$BIN" && mv -f "$BIN.sdk" "$BIN"
+done
+for BIN in "$APP/Contents/MacOS/MenuStats" "$APP/Contents/MacOS/MenuStatsHelper" "$APPEX/Contents/MacOS/MenuStatsWidgets"; do
+    RECORDED=$(xcrun vtool -show-build "$BIN" | awk '/ sdk /{print $2; exit}')
+    if [[ "${RECORDED%%.*}" -lt 26 ]]; then
+        echo "Errore: $BIN risulta compilato con l'SDK $RECORDED (atteso $SDK_VERSION)" >&2
+        exit 1
+    fi
+done
+
 # Inner code first: the helper and the widgets, then the app (whose signature seals them and the plist).
 codesign --force --options runtime --sign "$IDENTITY" --identifier local.menustats.helper "$APP/Contents/MacOS/MenuStatsHelper"
 codesign --force --options runtime --sign "$IDENTITY" --entitlements scripts/widgets.entitlements "$APPEX"
