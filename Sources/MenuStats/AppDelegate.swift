@@ -17,6 +17,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         updateItem = UpdateStatusItem(updater: model.updater) { [weak self] in self?.settingsWindow.show() }
         model.start()
         model.updater.start()
+        // The calendar asks for access at launch (macOS shows its prompt only the first time).
+        if model.settings.calendarEvents || model.settings.calendarAlerts {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [model] in model.calendar.requestAccess() }
+        }
         if CommandLine.arguments.contains("--install-update") { model.updater.installWhenAvailable() }
 
         if let flag = CommandLine.arguments.firstIndex(of: "--self-test"), flag + 1 < CommandLine.arguments.count {

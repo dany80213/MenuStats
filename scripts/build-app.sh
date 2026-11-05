@@ -91,6 +91,8 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>CFBundleVersion</key><string>${BUILD_NUMBER}</string>
     <key>CFBundleIconFile</key><string>AppIcon</string>
     <key>CFBundleIconName</key><string>AppIcon</string>
+    <key>NSCalendarsFullAccessUsageDescription</key><string>MenuStats mostra i tuoi impegni nella scheda Data e li annuncia nella barra dei menu poco prima che inizino. I dati restano sul Mac.</string>
+    <key>NSCalendarsUsageDescription</key><string>MenuStats mostra i tuoi impegni nella scheda Data e li annuncia nella barra dei menu poco prima che inizino. I dati restano sul Mac.</string>
     <key>NSLocationUsageDescription</key><string>MenuStats usa la tua posizione, solo se scegli la modalità automatica, per mostrare il meteo della tua città.</string>
     <key>NSLocationWhenInUseUsageDescription</key><string>MenuStats usa la tua posizione, solo se scegli la modalità automatica, per mostrare il meteo della tua città.</string>
     <key>NSHumanReadableCopyright</key><string>© 2026 Thomas Addamo</string>

@@ -4,7 +4,9 @@ import SwiftUI
 
 struct DateTab: View {
     @ObservedObject var weather: WeatherService
+    @ObservedObject var calendarService: CalendarService
     @ObservedObject private var settings = Settings.shared
+    @ObservedObject private var focus = CalendarFocus.shared
     @State private var monthOffset = 0
 
     private var calendar: Calendar {
@@ -37,9 +39,17 @@ struct DateTab: View {
                 }
             }
 
-            Card {
-                MonthCalendar(calendar: calendar, monthOffset: $monthOffset)
+            if settings.calendarEvents, calendarService.access == .granted, let next = nextEvent {
+                NextEventCard(event: next, use24Hour: settings.use24Hour)
             }
+
+            Card {
+                MonthCalendar(calendar: calendar, monthOffset: $monthOffset,
+                              selected: settings.calendarEvents ? $focus.day : nil,
+                              busyDays: settings.calendarEvents ? busyDays : [])
+            }
+
+            if settings.calendarEvents { eventsCard }
 
             if let today = weather.report?.today, let sunrise = today.sunrise, let sunset = today.sunset {
                 Card(title: "Sole", trailing: weather.report?.location.name) {
@@ -53,6 +63,53 @@ struct DateTab: View {
                         }
                     }
                 }
+            }
+        }
+    }
+
+    private var nextEvent: CalendarEvent? {
+        let now = Date()
+        return calendarService.upcoming.first { !$0.isAllDay && $0.end > now && $0.start.timeIntervalSince(now) < 86_400 }
+    }
+
+    private var busyDays: Set<Date> {
+        _ = calendarService.revision
+        let month = calendar.date(byAdding: .month, value: monthOffset, to: Date()) ?? Date()
+        return calendarService.busyDays(around: month, calendar: calendar)
+    }
+
+    @ViewBuilder private var eventsCard: some View {
+        switch calendarService.access {
+        case .granted:
+            let _ = calendarService.revision
+            let events = calendarService.events(on: focus.day, calendar: calendar)
+            let title = calendar.isDateInToday(focus.day) ? "Oggi"
+                : calendar.isDateInTomorrow(focus.day) ? "Domani"
+                : DateText.string(focus.day, "EEEE d MMMM").capitalized(with: DateText.locale)
+            Card(title: title, trailing: events.isEmpty ? nil : (events.count == 1 ? "1 impegno" : "\(events.count) impegni")) {
+                if events.isEmpty {
+                    HStack(spacing: 8) {
+                        Image(systemName: "calendar.badge.checkmark").font(.system(size: 18)).foregroundStyle(.secondary)
+                        Text("Nessun impegno").font(.system(size: 12)).foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    VStack(alignment: .leading, spacing: 10) {
+                        ForEach(events) { EventRow(event: $0, use24Hour: settings.use24Hour) }
+                    }
+                }
+            }
+        case .notDetermined:
+            Card(title: "Calendario") {
+                Text("Collega il calendario del Mac per vedere qui i tuoi impegni e ricevere un avviso nella barra poco prima che inizino.")
+                    .font(.system(size: 11.5)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                Button("Collega il calendario") { calendarService.requestAccess() }
+            }
+        case .denied:
+            Card(title: "Calendario") {
+                Text("MenuStats non ha accesso ai calendari. Puoi consentirlo in Impostazioni di Sistema ▸ Privacy e sicurezza ▸ Calendari.")
+                    .font(.system(size: 11.5)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                Button("Apri Impostazioni di Sistema…") { CalendarService.openPrivacySettings() }
             }
         }
     }
@@ -75,10 +132,97 @@ struct DateTab: View {
     }
 }
 
-/// Month grid (Monday first) with navigation and today highlighted.
+/// The next event, with a live countdown.
+private struct NextEventCard: View {
+    var event: CalendarEvent
+    var use24Hour: Bool
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 30)) { context in
+            let now = context.date
+            let ongoing = event.isOngoing(at: now)
+            HStack(spacing: 10) {
+                RoundedRectangle(cornerRadius: 2).fill(Color(nsColor: event.color)).frame(width: 4)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(ongoing ? "IN CORSO" : "PROSSIMO IMPEGNO · \(Self.countdown(to: event.start, now: now))")
+                        .font(.system(size: 9.5, weight: .semibold)).kerning(0.4)
+                        .foregroundStyle(Color(nsColor: event.color))
+                    Text(event.title).font(.system(size: 14, weight: .semibold)).lineLimit(1)
+                    Text(EventRow.timeRange(event, use24Hour: use24Hour) + (event.location.map { " · \($0)" } ?? ""))
+                        .font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
+                }
+                Spacer(minLength: 4)
+                if let url = event.meetingURL {
+                    Button { NSWorkspace.shared.open(url) } label: { Label("Partecipa", systemImage: "video.fill") }
+                        .controlSize(.small).buttonStyle(.borderedProminent).tint(Color(nsColor: event.color))
+                }
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color(nsColor: event.color).opacity(0.12)))
+        }
+    }
+
+    static func countdown(to start: Date, now: Date) -> String {
+        let minutes = Int((start.timeIntervalSince(now) / 60).rounded(.up))
+        if minutes < 60 { return "TRA \(max(minutes, 0)) MIN" }
+        let hours = minutes / 60, rest = minutes % 60
+        return rest == 0 ? "TRA \(hours) H" : "TRA \(hours) H \(rest) MIN"
+    }
+}
+
+/// One event of the selected day.
+struct EventRow: View {
+    var event: CalendarEvent
+    var use24Hour: Bool
+
+    var body: some View {
+        let now = Date()
+        let past = event.end < now
+        HStack(alignment: .top, spacing: 8) {
+            RoundedRectangle(cornerRadius: 1.5).fill(Color(nsColor: event.color)).frame(width: 3)
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 6) {
+                    Text(event.title).font(.system(size: 12.5, weight: .semibold)).lineLimit(2)
+                    if event.isOngoing(at: now), !event.isAllDay {
+                        Text("IN CORSO").font(.system(size: 8.5, weight: .bold)).padding(.horizontal, 5).padding(.vertical, 1.5)
+                            .background(Capsule().fill(Color(nsColor: event.color).opacity(0.2)))
+                            .foregroundStyle(Color(nsColor: event.color))
+                    }
+                }
+                Text(Self.timeRange(event, use24Hour: use24Hour) + " · " + event.calendarTitle)
+                    .font(.system(size: 10.5)).foregroundStyle(.secondary).monospacedDigit()
+                if let location = event.location {
+                    Label(location, systemImage: "mappin.and.ellipse").font(.system(size: 10.5)).foregroundStyle(.secondary).lineLimit(1)
+                }
+                if let notes = event.notes {
+                    Text(notes).font(.system(size: 10.5)).foregroundStyle(.tertiary).lineLimit(2)
+                }
+                if let url = event.meetingURL, !past {
+                    Button { NSWorkspace.shared.open(url) } label: { Label("Partecipa", systemImage: "video.fill").font(.system(size: 11)) }
+                        .buttonStyle(.link)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .opacity(past ? 0.5 : 1)
+        .contentShape(Rectangle())
+    }
+
+    static func timeRange(_ event: CalendarEvent, use24Hour: Bool) -> String {
+        guard !event.isAllDay else { return "Tutto il giorno" }
+        let pattern = use24Hour ? "HH:mm" : "h:mm a"
+        return "\(DateText.string(event.start, pattern))–\(DateText.string(event.end, pattern))"
+    }
+}
+
+/// Month grid (Monday first) with navigation and today highlighted; with a selection, days with events get a dot and
+/// a click picks the day whose events are listed.
 struct MonthCalendar: View {
     var calendar: Calendar
     @Binding var monthOffset: Int
+    var selected: Binding<Date>? = nil
+    var busyDays: Set<Date> = []
 
     var body: some View {
         let today = Date()
@@ -95,8 +239,11 @@ struct MonthCalendar: View {
                 Text(DateText.string(start, "MMMM yyyy").capitalized(with: Locale(identifier: "it_IT")))
                     .font(.system(size: 13, weight: .semibold))
                 Spacer()
-                if monthOffset != 0 {
-                    Button("Oggi") { monthOffset = 0 }.buttonStyle(.link).font(.system(size: 11))
+                if monthOffset != 0 || !(selected.map { calendar.isDateInToday($0.wrappedValue) } ?? true) {
+                    Button("Oggi") {
+                        monthOffset = 0
+                        selected?.wrappedValue = Date()
+                    }.buttonStyle(.link).font(.system(size: 11))
                 }
                 Button { monthOffset -= 1 } label: { Image(systemName: "chevron.left") }.buttonStyle(.borderless)
                 Button { monthOffset += 1 } label: { Image(systemName: "chevron.right") }.buttonStyle(.borderless)
@@ -124,13 +271,22 @@ struct MonthCalendar: View {
     @ViewBuilder private func dayCell(_ date: Date?, weekend: Bool, today: Date) -> some View {
         if let date {
             let isToday = calendar.isDate(date, inSameDayAs: today)
-            Text("\(calendar.component(.day, from: date))")
-                .font(.system(size: 12, weight: isToday ? .bold : .regular)).monospacedDigit()
-                .foregroundStyle(isToday ? Color.white : (weekend ? Color.secondary : Color.primary))
-                .frame(width: 26, height: 24)
-                .background(Circle().fill(isToday ? Palette.color(0) : Color.clear))
+            let isSelected = selected.map { calendar.isDate(date, inSameDayAs: $0.wrappedValue) } ?? false
+            let busy = busyDays.contains(calendar.startOfDay(for: date))
+            VStack(spacing: 1) {
+                Text("\(calendar.component(.day, from: date))")
+                    .font(.system(size: 12, weight: isToday || isSelected ? .bold : .regular)).monospacedDigit()
+                    .foregroundStyle(isToday ? Color.white : (weekend ? Color.secondary : Color.primary))
+                    .frame(width: 26, height: 22)
+                    .background(Circle().fill(isToday ? Palette.color(0) : Color.clear))
+                    .overlay(Circle().strokeBorder(isSelected && !isToday ? Palette.color(0) : Color.clear, lineWidth: 1.5))
+                Circle().fill(busy ? Palette.color(1) : Color.clear).frame(width: 4, height: 4)
+            }
+            .frame(height: selected == nil ? 24 : 28)
+            .contentShape(Rectangle())
+            .onTapGesture { selected?.wrappedValue = date }
         } else {
-            Color.clear.frame(width: 26, height: 24)
+            Color.clear.frame(width: 26, height: selected == nil ? 24 : 28)
         }
     }
 }

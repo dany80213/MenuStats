@@ -204,13 +204,29 @@ enum MemoryStyle: String, StyleOption {
 }
 
 enum DiskStyle: String, StyleOption {
-    case activity, free, usedPercent
-    var label: String { ["Lettura e scrittura", "Spazio libero", "Spazio usato (%)"][Self.allCases.firstIndex(of: self)!] }
+    case activity, free, usedPercent, graphs, graphsValues
+    var label: String {
+        ["Lettura e scrittura", "Spazio libero", "Spazio usato (%)", "Grafici scrittura e lettura", "Grafici e valori"][Self.allCases.firstIndex(of: self)!]
+    }
+    var usesGraphs: Bool { self == .graphs || self == .graphsValues }
 }
 
 enum NetworkStyle: String, StyleOption {
-    case stacked, download, total
-    var label: String { ["Upload e download", "Solo download", "Totale"][Self.allCases.firstIndex(of: self)!] }
+    case stacked, download, total, graphs, graphsValues
+    var label: String {
+        ["Upload e download", "Solo download", "Totale", "Grafici upload e download", "Grafici e valori"][Self.allCases.firstIndex(of: self)!]
+    }
+    var usesGraphs: Bool { self == .graphs || self == .graphsValues }
+}
+
+/// The two halves of the network and disk graphs, each with its own color.
+enum GraphSeries: String, CaseIterable, Identifiable {
+    case upload, download, write, read
+    var id: String { rawValue }
+    var label: String { ["Upload", "Download", "Scrittura", "Lettura"][Self.allCases.firstIndex(of: self)!] }
+    static let defaultColors: [GraphSeries: String] = [
+        .upload: "#EB6834", .download: "#2A78D6", .write: "#D55181", .read: "#1BAF7A",
+    ]
 }
 
 enum SensorSource: String, StyleOption {
@@ -229,9 +245,10 @@ enum BatteryStyle: String, StyleOption {
 }
 
 enum DateStyle: String, StyleOption {
-    case dayTime, time, timeSeconds, stacked, shortDate, numeric, long
+    case dayTime, time, timeSeconds, stacked, shortDate, numeric, long, calendarIcon, calendarIconTime
     var label: String {
-        ["Giorno e ora", "Solo ora", "Ora con secondi", "Data sopra l'ora", "Data breve", "Data numerica", "Data estesa"][Self.allCases.firstIndex(of: self)!]
+        ["Giorno e ora", "Solo ora", "Ora con secondi", "Data sopra l'ora", "Data breve", "Data numerica", "Data estesa",
+         "Icona calendario e mese", "Icona calendario, mese e ora"][Self.allCases.firstIndex(of: self)!]
     }
 }
 
@@ -348,6 +365,23 @@ final class Settings: ObservableObject {
     @Published var memoryStyle: MemoryStyle { didSet { save(memoryStyle.rawValue, "memoryStyle") } }
     @Published var diskStyle: DiskStyle { didSet { save(diskStyle.rawValue, "diskStyle") } }
     @Published var networkStyle: NetworkStyle { didSet { save(networkStyle.rawValue, "networkStyle") } }
+    /// Network and disk graphs in their own two colors (off: the module's color, monochrome by default).
+    @Published var graphColors: Bool { didSet { save(graphColors, "graphColors") } }
+
+    // Calendar
+    /// Events from the Mac's calendars in the Date tab (access is asked at launch).
+    @Published var calendarEvents: Bool { didSet { save(calendarEvents, "calendarEvents") } }
+    @Published var hiddenCalendars: Set<String> { didSet { save(Array(hiddenCalendars), "hiddenCalendars") } }
+    /// The menu bar steps aside to announce an event shortly before it starts.
+    @Published var calendarAlerts: Bool { didSet { save(calendarAlerts, "calendarAlerts") } }
+    @Published var calendarAlertMinutes: Int { didSet { save(calendarAlertMinutes, "calendarAlertMinutes") } }
+    @Published var calendarAlertSeconds: Int { didSet { save(calendarAlertSeconds, "calendarAlertSeconds") } }
+    @Published var calendarAlertRepeats: Int { didSet { save(calendarAlertRepeats, "calendarAlertRepeats") } }
+    @Published var calendarAlertRepeatMinutes: Int { didSet { save(calendarAlertRepeatMinutes, "calendarAlertRepeatMinutes") } }
+    @Published var calendarAlertAtStart: Bool { didSet { save(calendarAlertAtStart, "calendarAlertAtStart") } }
+    @Published var graphSeriesColors: [GraphSeries: String] {
+        didSet { save(Dictionary(uniqueKeysWithValues: graphSeriesColors.map { ($0.key.rawValue, $0.value) }), "graphSeriesColors") }
+    }
     @Published var sensorSource: SensorSource { didSet { save(sensorSource.rawValue, "sensorSource") } }
     @Published var fanStyle: FanStyle { didSet { save(fanStyle.rawValue, "fanStyle") } }
     @Published var batteryStyle: BatteryStyle { didSet { save(batteryStyle.rawValue, "batteryStyle") } }
@@ -463,6 +497,19 @@ final class Settings: ObservableObject {
         memoryStyle = string("memoryStyle", MemoryStyle.ringPercent)
         diskStyle = string("diskStyle", DiskStyle.activity)
         networkStyle = string("networkStyle", NetworkStyle.stacked)
+        graphColors = bool("graphColors", true)
+        calendarEvents = bool("calendarEvents", true)
+        hiddenCalendars = Set(defaults.stringArray(forKey: "hiddenCalendars") ?? [])
+        calendarAlerts = bool("calendarAlerts", true)
+        calendarAlertMinutes = defaults.object(forKey: "calendarAlertMinutes") as? Int ?? 10
+        calendarAlertSeconds = defaults.object(forKey: "calendarAlertSeconds") as? Int ?? 8
+        calendarAlertRepeats = defaults.object(forKey: "calendarAlertRepeats") as? Int ?? 1
+        calendarAlertRepeatMinutes = defaults.object(forKey: "calendarAlertRepeatMinutes") as? Int ?? 2
+        calendarAlertAtStart = bool("calendarAlertAtStart", true)
+        let savedGraphColors = defaults.dictionary(forKey: "graphSeriesColors") as? [String: String] ?? [:]
+        graphSeriesColors = Dictionary(uniqueKeysWithValues: GraphSeries.allCases.map { series in
+            (series, savedGraphColors[series.rawValue] ?? GraphSeries.defaultColors[series]!)
+        })
         sensorSource = string("sensorSource", SensorSource.cpuAverage)
         fanStyle = string("fanStyle", FanStyle.rpm)
         batteryStyle = string("batteryStyle", BatteryStyle.percent)
@@ -516,6 +563,10 @@ final class Settings: ObservableObject {
         .cpu: "#2A78D6", .memory: "#1BAF7A", .disk: "#EDA100", .network: "#6250D6",
         .sensors: "#EB6834", .fans: "#E87BA4", .battery: "#008300", .weather: "#2A78D6", .date: "#6250D6", .awake: "#EDA100",
     ]
+
+    func color(for series: GraphSeries) -> NSColor {
+        NSColor(hex: graphSeriesColors[series] ?? "") ?? NSColor(hex: GraphSeries.defaultColors[series]!)!
+    }
 
     func color(for module: ModuleID) -> NSColor {
         NSColor(hex: moduleColors[module] ?? "") ?? NSColor(hex: Settings.defaultColors[module]!)!

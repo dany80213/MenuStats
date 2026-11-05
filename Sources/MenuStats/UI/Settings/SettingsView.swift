@@ -635,7 +635,11 @@ struct ModuleSettings: View {
             SettingsSection(title: "Formato") {
                 Toggle("Formato 24 ore", isOn: $settings.use24Hour)
             }
+            CalendarSettings(model: model, calendar: model.calendar, settings: settings)
+        case .disk:
+            GraphColorSettings(settings: settings, series: [.write, .read], enabled: settings.diskStyle.usesGraphs)
         case .network:
+            GraphColorSettings(settings: settings, series: [.upload, .download], enabled: settings.networkStyle.usesGraphs)
             SettingsSection(title: "IP pubblico e VPN",
                             footnote: "L'IP pubblico si legge da ipwho.is (e l'IPv4, se il Mac usa IPv6, da api4.ipify.org), gratuiti e senza account: MenuStats fa una richiesta solo quando la scheda Rete è aperta, al massimo ogni 5 minuti o quando cambiano rete o VPN. È spento finché non lo attivi. Lo stato della VPN e il suo IP si leggono sul Mac, senza richieste. Con una VPN attiva l'IP pubblico è quello d'uscita della VPN, e la bandiera accanto all'IP della VPN è quella del paese di quell'indirizzo: per mostrarla, a VPN attiva, MenuStats fa la stessa richiesta anche se l'IP pubblico è spento.") {
                 Toggle("Mostra l'IP pubblico", isOn: $settings.publicIPEnabled)
@@ -802,6 +806,104 @@ struct WeatherPlaceSettings: View {
         WeatherService.search(query) { places in
             results = places
             searching = false
+        }
+    }
+}
+
+/// The two colors of the network or disk graphs.
+struct GraphColorSettings: View {
+    @ObservedObject var settings: Settings
+    var series: [GraphSeries]
+    var enabled: Bool
+
+    var body: some View {
+        SettingsSection(title: "Colori dei grafici",
+                        footnote: enabled ? "Nel grafico la parte sopra la linea è \(series[0].label.lowercased()), quella sotto \(series[1].label.lowercased()); ognuna ha la sua scala, così anche un traffico piccolo resta visibile."
+                                          : "Scegli lo stile \"Grafici\" qui sopra per vedere i due grafici nella barra.") {
+            Toggle("Grafici a colori", isOn: $settings.graphColors)
+            if settings.graphColors {
+                HStack(spacing: 18) {
+                    ForEach(series) { item in
+                        ColorPicker(selection: Binding(get: { Color(nsColor: settings.color(for: item)) },
+                                                       set: { settings.graphSeriesColors[item] = NSColor($0).hexString }),
+                                    supportsOpacity: false) { Text(item.label) }
+                    }
+                    Button("Ripristina") { settings.graphSeriesColors = GraphSeries.defaultColors.filter { series.contains($0.key) }
+                        .merging(settings.graphSeriesColors.filter { !series.contains($0.key) }) { a, _ in a } }
+                }
+            }
+        }
+    }
+}
+
+/// Calendar access, which calendars count, and the menu bar announcements.
+struct CalendarSettings: View {
+    var model: AppModel
+    @ObservedObject var calendar: CalendarService
+    @ObservedObject var settings: Settings
+
+    var body: some View {
+        SettingsSection(title: "Calendario",
+                        footnote: "MenuStats legge i calendari configurati nell'app Calendario del Mac (iCloud, Google, Exchange…) con il permesso di macOS. Gli impegni restano sul Mac: nessun dato esce.") {
+            HStack(spacing: 8) {
+                Image(systemName: calendar.access == .granted ? "checkmark.circle.fill" : "calendar.badge.exclamationmark")
+                    .foregroundStyle(calendar.access == .granted ? Color.green : Color.orange)
+                Text(statusText).fixedSize(horizontal: false, vertical: true)
+                Spacer()
+                switch calendar.access {
+                case .notDetermined: Button("Collega il calendario") { calendar.requestAccess() }
+                case .denied: Button("Apri Impostazioni di Sistema…") { CalendarService.openPrivacySettings() }
+                case .granted: EmptyView()
+                }
+            }
+            Toggle("Mostra gli impegni nella scheda Data", isOn: $settings.calendarEvents)
+            if calendar.access == .granted, !calendar.calendars.isEmpty {
+                Divider()
+                Text("Calendari").font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
+                ForEach(calendar.calendars) { info in
+                    Toggle(isOn: Binding(get: { !settings.hiddenCalendars.contains(info.id) }, set: { shown in
+                        if shown { settings.hiddenCalendars.remove(info.id) } else { settings.hiddenCalendars.insert(info.id) }
+                    })) {
+                        HStack(spacing: 6) {
+                            Circle().fill(Color(nsColor: info.color)).frame(width: 9, height: 9)
+                            Text(info.title)
+                            if !info.source.isEmpty { Text(info.source).font(.system(size: 11)).foregroundStyle(.secondary) }
+                        }
+                    }
+                }
+            }
+        }
+        SettingsSection(title: "Avvisi nella barra dei menu",
+                        footnote: "Poco prima di un impegno i moduli della barra si fanno da parte e al loro posto compare l'evento: un anello del colore del calendario conta i minuti, sopra il titolo ci sono orario e luogo, e un titolo lungo scorre. Se più impegni cadono insieme, scorrono uno dopo l'altro. Un clic sull'avviso apre la scheda Data su quel giorno. Gli eventi di tutto il giorno non vengono annunciati.") {
+            Toggle("Annuncia gli impegni nella barra", isOn: $settings.calendarAlerts)
+            Group {
+                Picker("Anticipo", selection: $settings.calendarAlertMinutes) {
+                    ForEach([1, 2, 5, 10, 15, 20, 30, 45, 60], id: \.self) { Text("\($0) min prima").tag($0) }
+                }
+                Picker("Durata dell'avviso", selection: $settings.calendarAlertSeconds) {
+                    ForEach([4, 6, 8, 10, 15, 20, 30], id: \.self) { Text("\($0) secondi").tag($0) }
+                }
+                Picker("Ripetizioni", selection: $settings.calendarAlertRepeats) {
+                    ForEach(1...5, id: \.self) { Text($0 == 1 ? "Una volta" : "\($0) volte").tag($0) }
+                }
+                if settings.calendarAlertRepeats > 1 {
+                    Picker("Ogni", selection: $settings.calendarAlertRepeatMinutes) {
+                        ForEach([1, 2, 3, 5, 10], id: \.self) { Text("\($0) min").tag($0) }
+                    }
+                }
+                Toggle("Annuncia anche quando l'impegno inizia", isOn: $settings.calendarAlertAtStart)
+                Button("Prova avviso") { model.eventAlerts.preview(calendar: calendar, settings: settings) }
+            }
+            .disabled(!settings.calendarAlerts)
+            .frame(maxWidth: 360, alignment: .leading)
+        }
+    }
+
+    private var statusText: String {
+        switch calendar.access {
+        case .granted: "Collegato: \(calendar.calendars.count) calendari."
+        case .notDetermined: "Non collegato: MenuStats chiede il permesso all'avvio."
+        case .denied: "Accesso negato in Impostazioni di Sistema ▸ Privacy e sicurezza ▸ Calendari."
         }
     }
 }

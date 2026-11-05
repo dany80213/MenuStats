@@ -134,6 +134,15 @@ enum MenubarRenderer {
             return compose(.disk, [.symbol("internaldrive", size: 12), .text("LIBERO", free, template: "999G")])
         case .usedPercent:
             return compose(.disk, [.ring(disk.usedFraction), .text("SSD", Format.percent(disk.usedFraction), template: "100%")])
+        case .graphs, .graphsValues:
+            let options = context.options
+            let graph = Part.dualGraph(top: context.recent(.diskWrite, 20), bottom: context.recent(.diskRead, 20),
+                                       topColor: options.graphColor(.write), bottomColor: options.graphColor(.read),
+                                       floor: 1_000_000, width: options.diskStyle == .graphs ? 40 : 30)
+            guard options.diskStyle == .graphsValues else { return compose(.disk, [graph]) }
+            let reading = disk.readRate > 64_000, writing = disk.writeRate > 64_000
+            return compose(.disk, [graph, .stacked(top: ("W", Format.rate(disk.writeRate, compact: true), !dynamic || writing),
+                                                   bottom: ("R", Format.rate(disk.readRate, compact: true), !dynamic || reading))])
         }
     }
 
@@ -158,6 +167,14 @@ enum MenubarRenderer {
             let total = network.uploadRate + network.downloadRate
             return compose(.network, [.text("NET", Format.rate(total, compact: true), template: "999K",
                                             emphasized: dynamic && (uploading || downloading))])
+        case .graphs, .graphsValues:
+            let options = context.options
+            let graph = Part.dualGraph(top: context.recent(.netUp, 20), bottom: context.recent(.netDown, 20),
+                                       topColor: options.graphColor(.upload), bottomColor: options.graphColor(.download),
+                                       floor: 20_000, width: options.networkStyle == .graphs ? 40 : 30)
+            guard options.networkStyle == .graphsValues else { return compose(.network, [graph]) }
+            return compose(.network, [graph, .stacked(top: ("↑", Format.rate(network.uploadRate, compact: true), !dynamic || uploading),
+                                                      bottom: ("↓", Format.rate(network.downloadRate, compact: true), !dynamic || downloading))])
         }
     }
 
@@ -260,7 +277,19 @@ enum MenubarRenderer {
             return compose(.date, [.plain(format("dd/MM/yy"), template: "88/88/88")])
         case .long:
             return compose(.date, [.plain(format("EEEE d MMMM"), template: nil)])
+        case .calendarIcon:
+            let page = Part.calendarPage(day: format("d"), weekday: weekdayShort(now))
+            return compose(.date, [page, .plain(format("MMM").capitalized(with: DateText.locale), template: "Mmm")])
+        case .calendarIconTime:
+            let page = Part.calendarPage(day: format("d"), weekday: weekdayShort(now))
+            return compose(.date, [page, .labeled(format("MMM").uppercased(), format(time + suffix),
+                                                  template: options.use24Hour ? "88:88" : "88:88 MM")])
         }
+    }
+
+    /// "LUN", "MAR"… : three letters fit the calendar page's band.
+    private static func weekdayShort(_ date: Date) -> String {
+        String(DateText.string(date, "EEE").prefix(3)).uppercased()
     }
 
     private static func awake(_ context: Context) -> MenubarSegment {
@@ -337,6 +366,11 @@ enum MenubarRenderer {
         case plain(String, template: String?)
         /// Always label above value.
         case labeled(String, String, template: String)
+        /// Two graphs on one center line: `top` grows up from it, `bottom` down, each scaled to its own peak (at least
+        /// `floor`, so idle noise stays flat). Colors nil: the module's accent.
+        case dualGraph(top: [Double], bottom: [Double], topColor: NSColor?, bottomColor: NSColor?, floor: Double, width: CGFloat)
+        /// A calendar page: the weekday cut out of its top band, the day number below.
+        case calendarPage(day: String, weekday: String)
         /// A larger battery with the percentage written inside the fill.
         case batteryPercent(level: Double, charging: Bool, pluggedIn: Bool, lowPower: Bool, emphasized: Bool)
     }
@@ -401,11 +435,13 @@ enum MenubarRenderer {
             let valueWidth = max(measure("999K", stackFont), measure(top.1, stackFont), measure(bottom.1, stackFont))
             return max(measure(top.0, stackFont), measure(bottom.0, stackFont)) + 2 + valueWidth
         case .graph(_, let width): return width
+        case .dualGraph(_, _, _, _, _, let width): return width
         case .cores(let cores): return CGFloat(max(cores.count, 1)) * 3
         case .ring: return 13
         case .symbol(_, let size): return size + 3
         case .fan: return 14
         case .cup: return 16
+        case .calendarPage: return 18
         case .plain(let text, let template):
             return max(measure(text, plainFont), template.map { measure($0, plainFont) } ?? 0)
         case .labeled(let label, let value, let template):
@@ -461,6 +497,30 @@ enum MenubarRenderer {
                              xRadius: 0.5, yRadius: 0.5).fill()
             }
 
+        case .dualGraph(let top, let bottom, let topColor, let bottomColor, let floor, _):
+            let plot = rect.insetBy(dx: 0.5, dy: 2)
+            ink.base.withAlphaComponent(0.08).setFill()
+            NSBezierPath(roundedRect: plot.insetBy(dx: -1, dy: -0.5), xRadius: 2, yRadius: 2).fill()
+            let middle = plot.midY
+            let half = plot.height / 2 - 0.75
+            let slots = max(Int(plot.width / 2), 1)
+            func bars(_ values: [Double], color: NSColor, upward: Bool) {
+                let shown = Array(values.suffix(slots))
+                let peak = max(shown.max() ?? 0, floor)
+                color.setFill()
+                for (index, value) in shown.enumerated() {
+                    let offset = slots - shown.count + index
+                    let height = max(0.75, half * CGFloat(min(max(value / peak, 0), 1)))
+                    let y = upward ? middle + 0.75 : middle - 0.75 - height
+                    NSBezierPath(roundedRect: NSRect(x: plot.minX + CGFloat(offset) * 2, y: y, width: 1.5, height: height),
+                                 xRadius: 0.5, yRadius: 0.5).fill()
+                }
+            }
+            bars(top, color: topColor ?? ink.accent, upward: true)
+            bars(bottom, color: bottomColor ?? ink.accent, upward: false)
+            ink.base.withAlphaComponent(0.25).setFill()
+            NSRect(x: plot.minX, y: middle - 0.25, width: plot.width, height: 0.5).fill()
+
         case .cores(let cores):
             let plot = rect.insetBy(dx: 0, dy: 3)
             for (index, value) in cores.enumerated() {
@@ -506,6 +566,36 @@ enum MenubarRenderer {
             let cup = NSRect(x: rect.minX, y: rect.minY - (steam == nil ? 0 : 2), width: rect.width, height: rect.height)
             drawSymbol(active ? "cup.and.saucer.fill" : "cup.and.saucer", size: 13, in: cup, color: ink.accent)
             if let steam { drawSteam(phase: steam, in: rect, color: ink.accent) }
+
+        case .calendarPage(let day, let weekday):
+            let page = NSRect(x: rect.minX + 0.75, y: rect.minY + 2, width: 16.5, height: 18)
+            let band = NSRect(x: page.minX, y: page.maxY - 6.5, width: page.width, height: 6.5)
+            // Outline of the page, then the band filled with the accent, rounded like the page's top corners.
+            let outline = NSBezierPath(roundedRect: page.insetBy(dx: 0.5, dy: 0.5), xRadius: 3.5, yRadius: 3.5)
+            outline.lineWidth = 1
+            ink.base.withAlphaComponent(0.85).setStroke()
+            outline.stroke()
+            NSGraphicsContext.saveGraphicsState()
+            NSBezierPath(roundedRect: page, xRadius: 3.5, yRadius: 3.5).addClip()
+            ink.accent.setFill()
+            band.fill()
+            NSGraphicsContext.restoreGraphicsState()
+            if let context = NSGraphicsContext.current {
+                let font = NSFont.systemFont(ofSize: 5.2, weight: .heavy)
+                let text = weekday as NSString
+                let size = text.size(withAttributes: [.font: font, .kern: 0.3])
+                context.saveGraphicsState()
+                context.compositingOperation = .destinationOut
+                text.draw(at: NSPoint(x: band.midX - size.width / 2, y: band.midY - size.height / 2 + 0.2),
+                          withAttributes: [.font: font, .kern: 0.3, .foregroundColor: NSColor.black])
+                context.restoreGraphicsState()
+            }
+            let number = day as NSString
+            let numberFont = roundedFont(size: 10, weight: .bold)
+            let numberSize = number.size(withAttributes: [.font: numberFont])
+            let body = NSRect(x: page.minX, y: page.minY, width: page.width, height: page.height - band.height)
+            number.draw(at: NSPoint(x: body.midX - numberSize.width / 2, y: body.midY - numberSize.height / 2 + 0.3),
+                        withAttributes: [.font: numberFont, .foregroundColor: ink.value])
 
         case .battery(let level, let charging, let pluggedIn, let lowPower):
             let body = batteryBody(in: rect, charging: charging, pluggedIn: pluggedIn, width: 20, height: 10, radius: 3, ink: ink)
@@ -716,8 +806,17 @@ struct MenubarOptions {
     var awakeStyle: AwakeStyle
     var cpuBusyThreshold: Double
     var temperatureHotThreshold: Double
+    var graphColors: Bool
+    var graphSeriesColors: [GraphSeries: NSColor]
+    /// Draw a colored (non-template) image whatever the settings: the calendar announcement needs it.
+    var forceColor = false
 
-    var usesColor: Bool { severityColors || colorIcons }
+    /// Colored network and disk graphs need a colored image too.
+    var usesColor: Bool {
+        forceColor || severityColors || colorIcons || (graphColors && (networkStyle.usesGraphs || diskStyle.usesGraphs))
+    }
+
+    func graphColor(_ series: GraphSeries) -> NSColor? { graphColors ? graphSeriesColors[series] : nil }
 
     init(_ settings: Settings) {
         showLabels = settings.showLabels
@@ -738,17 +837,20 @@ struct MenubarOptions {
         awakeStyle = settings.awakeStyle
         cpuBusyThreshold = settings.cpuBusyThreshold
         temperatureHotThreshold = settings.temperatureHotThreshold
+        graphColors = settings.graphColors
+        graphSeriesColors = Dictionary(uniqueKeysWithValues: GraphSeries.allCases.map { ($0, settings.color(for: $0)) })
     }
 }
 
 /// Italian date formatting with cached formatters (patterns are fixed, so one formatter each).
 enum DateText {
+    static let locale = Locale(identifier: "it_IT")
     private static var cache: [String: DateFormatter] = [:]
 
     static func string(_ date: Date, _ pattern: String) -> String {
         if let formatter = cache[pattern] { return formatter.string(from: date) }
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "it_IT")
+        formatter.locale = locale
         formatter.dateFormat = pattern
         cache[pattern] = formatter
         return formatter.string(from: date)

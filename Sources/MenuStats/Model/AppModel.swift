@@ -31,6 +31,9 @@ final class AppModel: ObservableObject {
     let proximity: ProximityLock
     /// Weather from Open-Meteo; idle (no network) unless the Weather module is enabled with a place chosen.
     let weather = WeatherService()
+    /// The Mac's calendars (EventKit): events in the Date tab and announcements in the menu bar.
+    private(set) lazy var calendar = CalendarService(settings: settings)
+    let eventAlerts = EventAlerts()
     /// The Mac's city for the Weather module's automatic mode; idle unless that mode is on.
     let location = LocationProvider()
     /// Public IP and VPN for the Network tab; idle unless that tab is open.
@@ -126,6 +129,7 @@ final class AppModel: ObservableObject {
             live[metric] = buffer
         }
         alerts.evaluate(snapshot, settings: settings)
+        if settings.calendarAlerts, calendar.access == .granted { eventAlerts.evaluate(calendar.upcoming, settings: settings) }
         awake.evaluate(snapshot)
         self.snapshot = snapshot
         if snapshot.date.timeIntervalSince(lastSlowUpdate) >= 5 {

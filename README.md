@@ -71,13 +71,13 @@ meteo, data e un modulo per tenere il Mac sveglio. Compatto, preciso e leggero.
 |---|---|---|
 | **CPU** | grafico + percentuale, barre per core | utilizzo utente/sistema, core efficienza e prestazioni, carico, processi |
 | **Memoria** | anello, percentuale, usata, pressione | composizione (app, wired, compressa, cache), swap, processi |
-| **Disco** | lettura/scrittura, spazio libero | volumi (usato / eliminabile / libero), attività, processi |
-| **Rete** | upload/download, totale | traffico, connessione, **IP pubblico e VPN** con bandiera, app che usano la rete |
+| **Disco** | lettura/scrittura, spazio libero, **grafici doppi** scrittura/lettura | volumi (usato / eliminabile / libero), attività, processi |
+| **Rete** | upload/download, totale, **grafici doppi** upload/download | traffico, connessione, **IP pubblico e VPN** con bandiera, app che usano la rete |
 | **Temperature** | CPU (media dei core), massima, SSD, batteria | ogni core della CPU e della GPU, SoC, SSD, stato termico |
 | **Ventole** | giri, percentuale, solo icona animata | velocità, controllo **Automatico / Personalizzato**, consumo del sistema |
 | **Batteria** | percentuale, nell'icona, tempo, watt | carica, salute ufficiale Apple, cicli, potenza, **limite di carica**, basso consumo |
 | **Meteo** · *facoltativo* | icona + temperatura | condizioni attuali, prossime 24 ore, 7 giorni con barre min/max |
-| **Data e ora** · *facoltativo* | 7 disposizioni, 12/24 ore | calendario del mese, settimana, alba e tramonto |
+| **Data e ora** · *facoltativo* | 9 disposizioni, anche **icona calendario** con giorno e mese, 12/24 ore | calendario del mese con i tuoi **impegni**, prossimo impegno, alba e tramonto |
 | **Sveglio** · *facoltativo* | tazza con vapore, tempo rimanente | durata, durata personalizzata, finché un file si scarica, un'app è aperta o un'IA lavora; schermo acceso o libero, fine con batteria scarica |
 
 La scheda **Mappa** mostra dove si trova il Mac e, sotto, **i tuoi dispositivi vicini**: accessori Bluetooth associati
@@ -100,6 +100,27 @@ possono bloccare il Mac per un calo momentaneo.
 
 Su Mac senza ventole (MacBook Air) o senza batteria (desktop) i moduli che non servono si nascondono da soli.
 Clic su un modulo: si apre la sua scheda. Clic destro: Impostazioni, Monitoraggio Attività, Esci.
+
+## 📅 Calendario e avvisi nella barra
+
+MenuStats si collega al Calendario del Mac (iCloud, Google, Exchange… quello che hai configurato): all'avvio chiede il
+permesso a macOS, poi nella scheda **Data** ogni giorno con impegni ha un puntino. Fai clic su un giorno per vederne gli
+eventi con orario, luogo, note e un pulsante **Partecipa** per le videochiamate (Zoom, Meet, Teams, FaceTime, Webex).
+In alto c'è il prossimo impegno con il conto alla rovescia.
+
+**Avvisi senza notifiche.** Poco prima di un impegno (10 minuti di serie) i moduli della barra si fanno da parte uno
+dopo l'altro e al loro posto sale l'evento: un anello del colore del calendario conta i minuti, sopra il titolo ci
+sono orario e luogo, un titolo lungo scorre, un'icona segnala la videochiamata. Dopo qualche secondo i moduli tornano
+al loro posto. Più impegni insieme scorrono uno dopo l'altro; un clic sull'avviso apre la scheda Data su quel giorno.
+In Impostazioni ▸ Data e ora scegli anticipo, durata, ripetizioni e intervallo, l'avviso all'inizio, quali calendari
+usare, e c'è **Prova avviso**. Gli impegni restano sul Mac: nessun dato esce.
+
+## 📈 Grafici di rete e disco
+
+Gli stili **Grafici** e **Grafici e valori** di Rete e Disco disegnano due grafici su una linea comune, come quello
+della CPU: sopra l'upload (o la scrittura), sotto il download (o la lettura), ognuno con la sua scala così anche il
+traffico piccolo si vede. I due colori si scelgono in Impostazioni ▸ Rete o Disco, oppure si spengono per un grafico
+monocromatico come il resto della barra.
 
 ## 🧱 Widget
 

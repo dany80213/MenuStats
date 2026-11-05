@@ -31,6 +31,7 @@ final class StatusBarController: NSObject {
         self.panel = panel
         self.openSettings = openSettings
         super.init()
+        observeAnnouncements()
         lastGeometry = Self.savedGeometry()
         observeRoom()
 
@@ -184,6 +185,7 @@ final class StatusBarController: NSObject {
 
     /// Shows the widest step that fits the measured room, if it can be measured.
     private func applyRoom() {
+        guard playback == nil else { return } // the announcement changes the widths on purpose
         guard settings.autoFitMenubar, !rebuilding, let room = measuredRoom() else { return }
         let target = MenubarFit.choose(ladder, room: room, current: fitLevel)
         guard target != fitLevel else { return }
@@ -304,6 +306,7 @@ final class StatusBarController: NSObject {
     }
 
     private func checkFit() {
+        guard playback == nil else { return }
         guard settings.autoFitMenubar, !entries.isEmpty else { return }
         let hidden = entries.contains { isOutOfRoom($0.item) }
         let verdict = confirmation.observe(hidden: hidden, signature: layoutSignature, at: Date())
@@ -426,6 +429,7 @@ final class StatusBarController: NSObject {
     }
 
     private func render() {
+        if playback != nil { renderBanner(); return }
         var options = MenubarOptions(settings)
         if !configuredLabels || (settings.autoFitMenubar && !currentStep.labels) { options.showLabels = false }
         let context = makeContext(options: options)
@@ -523,7 +527,128 @@ final class StatusBarController: NSObject {
 
     // MARK: - Clicks
 
+    // MARK: - Calendar announcements
+
+    /// A banner being played: the modules step aside, the event takes their place, then they come back.
+    private struct BannerPlayback {
+        var banner: EventAlerts.Banner
+        var start: Double
+        /// The items' lengths before the announcement, restored afterwards.
+        var lengths: [CGFloat]
+        /// Width of the first item while the banner shows.
+        var width: CGFloat
+        /// Set by a click: the time the exit began.
+        var exitAt: Double?
+    }
+
+    private var playback: BannerPlayback?
+    private var bannerTimer: Timer?
+    private static let bannerIn = 0.75, bannerOut = 0.65, bannerCrossfade = 0.4
+
+    private func observeAnnouncements() {
+        model.eventAlerts.$pending.compactMap { $0 }.receive(on: RunLoop.main).sink { [weak self] banner in
+            self?.playBanner(banner)
+        }.store(in: &cancellables)
+    }
+
+    private func playBanner(_ banner: EventAlerts.Banner) {
+        guard !entries.isEmpty, !banner.events.isEmpty else { model.eventAlerts.finished(banner); return }
+        if var current = playback {
+            // Already announcing: add the new events to the running banner.
+            let extra = banner.events.filter { event in !current.banner.events.contains { $0.id == event.id } }
+            current.banner.events += extra
+            playback = current
+            model.eventAlerts.finished(banner)
+            return
+        }
+        let lengths = entries.map { $0.item.length }
+        let contents = banner.events.map(content(for:))
+        // As wide as the text wants, within the room MenuStats has (the other items fold away meanwhile).
+        let available = max(lengths.reduce(0, +), measuredRoom() ?? 360)
+        let width = max(lengths[0], min(MenubarRenderer.idealBannerWidth(contents) + 2, available))
+        playback = BannerPlayback(banner: banner, start: ProcessInfo.processInfo.systemUptime, lengths: lengths, width: width)
+        let timer = Timer(timeInterval: 1.0 / 60, repeats: true) { [weak self] _ in self?.renderBanner() }
+        RunLoop.main.add(timer, forMode: .common)
+        bannerTimer = timer
+        renderBanner()
+    }
+
+    private func content(for event: CalendarEvent) -> EventBannerContent {
+        EventBannerContent.make(event, now: Date(), use24Hour: settings.use24Hour, leadMinutes: settings.calendarAlertMinutes)
+    }
+
+    private func renderBanner() {
+        guard let playback else { return }
+        let t = ProcessInfo.processInfo.systemUptime - playback.start
+        let events = playback.banner.events
+        let slot = playback.banner.secondsPerEvent
+        let exitAt = playback.exitAt ?? (Self.bannerIn + Double(events.count) * slot)
+        let reveal: CGFloat
+        if t < Self.bannerIn {
+            reveal = CGFloat(t / Self.bannerIn)
+        } else if t < exitAt {
+            reveal = 1
+        } else {
+            reveal = CGFloat(1 - (t - exitAt) / Self.bannerOut)
+            if reveal <= 0 { finishBanner(); return }
+        }
+        // Which event, and the crossfade into the next one at the end of its slot.
+        let shownTime = max(min(t, exitAt) - Self.bannerIn, 0)
+        let index = min(Int(shownTime / slot), events.count - 1)
+        let within = shownTime - Double(index) * slot
+        let crossfade = index < events.count - 1 && within > slot - Self.bannerCrossfade
+            ? CGFloat((within - (slot - Self.bannerCrossfade)) / Self.bannerCrossfade) : 0
+        let current = content(for: events[index])
+        let next = index < events.count - 1 ? content(for: events[index + 1]) : nil
+
+        let context = makeContext(options: MenubarOptions(settings))
+        let eased = MenubarRenderer.ease(min(max(reveal, 0), 1))
+        for index in entries.indices {
+            guard let button = entries[index].item.button else { continue }
+            let from = playback.lengths[index]
+            // The first item becomes the banner; the others fold away while their modules leave.
+            let length = index == 0 ? from + (playback.width - from) * eased : from * (1 - eased)
+            let image = MenubarRenderer.bannerImage(modules: entries[index].modules, context: context, width: max(length - 2, 1),
+                                                    reveal: reveal, current: index == 0 ? current : nil,
+                                                    next: index == 0 ? next : nil, crossfade: crossfade,
+                                                    elapsed: within)
+            let bitmap = Self.rasterize(image, appearance: button.effectiveAppearance, scale: button.window?.backingScaleFactor ?? 2)
+            button.image = bitmap.image
+            entries[index].pixels = Data()
+            if abs(entries[index].item.length - length) > 0.25 { entries[index].item.length = max(length, 0) }
+        }
+    }
+
+    private func finishBanner() {
+        bannerTimer?.invalidate()
+        bannerTimer = nil
+        if let playback { model.eventAlerts.finished(playback.banner) }
+        playback = nil
+        render()
+        confirmation.layoutChanged(at: Date(), signature: layoutSignature)
+        scheduleFitCheck()
+    }
+
+    /// A click on the banner: it leaves, and the dropdown opens on that event's day.
+    private func dismissBanner(from sender: NSStatusBarButton) {
+        guard var current = playback else { return }
+        let t = ProcessInfo.processInfo.systemUptime - current.start
+        let slotIndex = min(Int(max(t - Self.bannerIn, 0) / current.banner.secondsPerEvent), current.banner.events.count - 1)
+        let event = current.banner.events[slotIndex]
+        if current.exitAt == nil { current.exitAt = max(t, Self.bannerIn) }
+        playback = current
+        CalendarFocus.shared.day = event.start
+        if let window = sender.window {
+            let anchor = window.convertPoint(toScreen: NSPoint(x: sender.frame.midX, y: 0))
+            panel.toggle(tab: .date, anchor: NSPoint(x: anchor.x, y: window.frame.minY))
+        }
+    }
+
     @objc private func clicked(_ sender: NSStatusBarButton) {
+        if playback != nil, NSApp.currentEvent?.type != .rightMouseUp {
+            dismissBanner(from: sender)
+            return
+        }
         guard let entry = entries.first(where: { $0.item.button === sender }), let event = NSApp.currentEvent else { return }
 
         if event.type == .rightMouseUp || event.modifierFlags.contains(.control) {

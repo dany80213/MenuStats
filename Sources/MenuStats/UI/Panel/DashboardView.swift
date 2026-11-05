@@ -142,7 +142,8 @@ struct DashboardContent: View {
     private func isEnabledTab(_ tab: DashboardTab) -> Bool {
         switch tab {
         case .weather: model.settings.isEnabled(.weather)
-        case .date: model.settings.isEnabled(.date)
+        // The calendar's events live in the Date tab: it shows once the calendar is connected, even without the module.
+        case .date: model.settings.isEnabled(.date) || (model.settings.calendarEvents && model.calendar.access == .granted)
         case .awake: model.settings.isEnabled(.awake)
         default: true
         }
@@ -168,7 +169,7 @@ struct DashboardContent: View {
         case .sensors: SensorsTab(model: model)
         case .battery: BatteryTab(model: model)
         case .weather: WeatherTab(weather: model.weather, openSettings: openSettings)
-        case .date: DateTab(weather: model.weather)
+        case .date: DateTab(weather: model.weather, calendarService: model.calendar)
         case .awake: AwakeTab(model: model)
         case .map: MapTab(proximity: model.proximity, openSettings: openSettings)
         }

@@ -26,6 +26,7 @@ let package = Package(
                 .linkedFramework("SystemConfiguration"),
                 .linkedFramework("ServiceManagement"),
                 .linkedFramework("CoreLocation"),
+                .linkedFramework("EventKit"),
                 .linkedFramework("WidgetKit"),
                 .linkedLibrary("sqlite3"),
             ]
