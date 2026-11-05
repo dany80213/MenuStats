@@ -72,12 +72,12 @@ final class CalendarTests: XCTestCase {
         let e = event(startsIn: 10, meeting: URL(string: "https://meet.google.com/x"))
         let before = EventBannerContent.make(e, now: start, use24Hour: true, leadMinutes: 10)
         XCTAssertEqual(before.minutes, 10)
-        XCTAssertTrue(before.detail.hasPrefix("TRA 10 MIN · "))
-        XCTAssertTrue(before.detail.hasSuffix("SALA 2"))
+        XCTAssertTrue(before.when.hasPrefix("tra 10 min · "))
+        XCTAssertEqual(before.place, "Sala 2")
         XCTAssertTrue(before.hasMeeting)
         let now = EventBannerContent.make(e, now: e.start.addingTimeInterval(5), use24Hour: true, leadMinutes: 10)
         XCTAssertNil(now.minutes)
-        XCTAssertTrue(now.detail.hasPrefix("ORA · FINO ALLE"))
+        XCTAssertTrue(now.when.hasPrefix("in corso · fino alle"))
         XCTAssertEqual(now.progress, 1)
     }
 
