@@ -73,6 +73,12 @@ final class CalendarService: ObservableObject {
         settings.$hiddenCalendars.dropFirst().receive(on: RunLoop.main).sink { [weak self] _ in
             DispatchQueue.main.async { self?.reload() }
         }.store(in: &cancellables)
+        let focus = FocusCalendarFilter.shared
+        focus.$status.dropFirst().removeDuplicates().sink { [weak self] _ in
+            DispatchQueue.main.async { self?.reload() }
+        }.store(in: &cancellables)
+        focus.setEnabled(settings.calendarFollowFocus)
+        settings.$calendarFollowFocus.dropFirst().removeDuplicates().sink { focus.setEnabled($0) }.store(in: &cancellables)
         if access == .granted { start() }
     }
 
@@ -137,11 +143,24 @@ final class CalendarService: ObservableObject {
         revision += 1
     }
 
+    /// The calendars whose events MenuStats shows: those kept on in Settings, narrowed by the Calendar filter of the
+    /// macOS Focus that is on. A filter that names calendars to show wins over Settings (it is an explicit choice);
+    /// one that hides calendars hides them on top of those already off in Settings.
+    static func visibleCalendarIDs(all: [String], hidden: Set<String>, focus: FocusCalendarRule?) -> [String] {
+        switch focus {
+        case .show(let shown)?: return all.filter(shown.contains)
+        case .hide(let off)?: return all.filter { !hidden.contains($0) && !off.contains($0) }
+        case nil: return all.filter { !hidden.contains($0) }
+        }
+    }
+
     /// Events between two dates, sorted, from visible calendars; declined invitations and cancelled events left out.
     func events(from start: Date, to end: Date) -> [CalendarEvent] {
         guard access == .granted else { return [] }
-        let hidden = settings.hiddenCalendars
-        let visible = store.calendars(for: .event).filter { !hidden.contains($0.calendarIdentifier) }
+        let all = store.calendars(for: .event)
+        let ids = Set(Self.visibleCalendarIDs(all: all.map(\.calendarIdentifier), hidden: settings.hiddenCalendars,
+                                              focus: FocusCalendarFilter.shared.rule))
+        let visible = all.filter { ids.contains($0.calendarIdentifier) }
         guard !visible.isEmpty else { return [] }
         let predicate = store.predicateForEvents(withStart: start, end: end, calendars: visible)
         return store.events(matching: predicate).compactMap { event -> CalendarEvent? in

@@ -26,8 +26,8 @@ struct SMCStats {
     var gpuTemperature: Double? { gpuTemperatures.isEmpty ? nil : gpuTemperatures.reduce(0, +) / Double(gpuTemperatures.count) }
 }
 
-/// SMC temperature keys per chip. "CPU" is the average of the per-core keys, the same figure iStat Menus
-/// shows (verified on M3 Pro against its own history: identical to the average of these 11 keys). The HID
+/// SMC temperature keys per chip. "CPU" is the average of the per-core keys (verified on M3 Pro: these 11 keys
+/// track the CPU cluster closely). The HID
 /// "PMU tdie" sensors sit elsewhere on the die and read ~5–8 °C lower, so they are only a fallback.
 enum SMCSensorMap {
     struct Keys {
@@ -41,8 +41,8 @@ enum SMCSensorMap {
             gpu: ["Tg01", "Tg05", "Tg0D", "Tg0L", "Tg0V", "Tg0v", "Tg13", "Tg1B", "Tg1l"]
         ),
         // MacBook Pro (Mac16,8). The per-core `Tp` keys sit at a 40 °C floor while a core idles, so the CPU figure uses
-        // the `TfC*` die sensors instead: within ~2 °C of iStat Menus on this Mac (idle 35 vs 36, load 44 vs 42).
-        // GPU: the `Tg` sensors that track the GPU cluster (idle: 46-47 vs 46.8 in iStat Menus).
+        // the `TfC*` die sensors instead, which follow the load (idle about 35 °C, load about 44 °C on this Mac).
+        // GPU: the `Tg` sensors that track the GPU cluster (idle: 46-47 °C).
         "Apple M4 Pro": Keys(
             cpuCores: ["TfC0", "TfC1", "TfC2", "TfC3", "TfC4"],
             gpu: ["Tg05", "Tg0S", "Tg0Y", "Tg0k", "Tg0z", "Tg1V", "Tg1l"]

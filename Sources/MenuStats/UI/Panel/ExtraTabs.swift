@@ -5,6 +5,7 @@ import SwiftUI
 struct DateTab: View {
     @ObservedObject var weather: WeatherService
     @ObservedObject var calendarService: CalendarService
+    @ObservedObject private var focusFilter = FocusCalendarFilter.shared
     @ObservedObject private var settings = Settings.shared
     @ObservedObject private var focus = CalendarFocus.shared
     @State private var monthOffset = 0
@@ -97,6 +98,11 @@ struct DateTab: View {
                     VStack(alignment: .leading, spacing: 10) {
                         ForEach(events) { EventRow(event: $0, use24Hour: settings.use24Hour) }
                     }
+                }
+                if case .active(let active) = focusFilter.status, active.calendars != nil {
+                    Label("\(active.name): solo i calendari del suo filtro", systemImage: "moon.fill")
+                        .font(.system(size: 10.5)).foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
         case .notDetermined:

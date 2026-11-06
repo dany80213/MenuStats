@@ -240,8 +240,8 @@ enum FanStyle: String, StyleOption {
 }
 
 enum BatteryStyle: String, StyleOption {
-    case percent, time, watts, iconOnly, insidePercent
-    var label: String { ["Percentuale", "Tempo rimanente", "Potenza (W)", "Solo icona", "Percentuale nell'icona"][Self.allCases.firstIndex(of: self)!] }
+    case percent, time, percentTime, watts, iconOnly, insidePercent
+    var label: String { ["Percentuale", "Tempo rimanente", "Percentuale e tempo rimanente", "Potenza (W)", "Solo icona", "Percentuale nell'icona"][Self.allCases.firstIndex(of: self)!] }
 }
 
 enum DateStyle: String, StyleOption {
@@ -372,6 +372,8 @@ final class Settings: ObservableObject {
     /// Events from the Mac's calendars in the Date tab (access is asked at launch).
     @Published var calendarEvents: Bool { didSet { save(calendarEvents, "calendarEvents") } }
     @Published var hiddenCalendars: Set<String> { didSet { save(Array(hiddenCalendars), "hiddenCalendars") } }
+    /// While a macOS Focus with a Calendar filter is on, show only the calendars it lets through.
+    @Published var calendarFollowFocus: Bool { didSet { save(calendarFollowFocus, "calendarFollowFocus") } }
     /// The menu bar steps aside to announce an event shortly before it starts.
     @Published var calendarAlerts: Bool { didSet { save(calendarAlerts, "calendarAlerts") } }
     @Published var calendarAlertMinutes: Int { didSet { save(calendarAlertMinutes, "calendarAlertMinutes") } }
@@ -500,6 +502,7 @@ final class Settings: ObservableObject {
         graphColors = bool("graphColors", true)
         calendarEvents = bool("calendarEvents", true)
         hiddenCalendars = Set(defaults.stringArray(forKey: "hiddenCalendars") ?? [])
+        calendarFollowFocus = bool("calendarFollowFocus", true)
         calendarAlerts = bool("calendarAlerts", true)
         calendarAlertMinutes = defaults.object(forKey: "calendarAlertMinutes") as? Int ?? 10
         calendarAlertSeconds = defaults.object(forKey: "calendarAlertSeconds") as? Int ?? 8

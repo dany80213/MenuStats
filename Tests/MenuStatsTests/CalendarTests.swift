@@ -110,4 +110,42 @@ final class CalendarTests: XCTestCase {
         XCTAssertEqual(image.size.width, 200)
         XCTAssertNotNil(image.cgImage(forProposedRect: nil, context: nil, hints: nil))
     }
+
+    func testFocusFilterPicksCalendars() {
+        let all = ["lavoro", "casa", "sport", "compleanni"]
+        // No Focus filter: the Settings choice.
+        XCTAssertEqual(CalendarService.visibleCalendarIDs(all: all, hidden: ["sport"], focus: nil), ["lavoro", "casa", "compleanni"])
+        // A filter that shows calendars wins, even over one hidden in Settings.
+        XCTAssertEqual(CalendarService.visibleCalendarIDs(all: all, hidden: ["sport"], focus: .show(["sport", "lavoro"])), ["lavoro", "sport"])
+        // A filter that hides calendars adds to the ones hidden in Settings.
+        XCTAssertEqual(CalendarService.visibleCalendarIDs(all: all, hidden: ["compleanni"], focus: .hide(["casa"])), ["lavoro", "sport"])
+    }
+
+    func testFocusPredicateFromMacOS() {
+        // As System Settings stores a Calendar filter that keeps one calendar.
+        let stored = #"NOT SELF IN {"A896F713-4A08-4CC2-8D5E-D7000A403DFC", "CE2DFC67-69C2-4318-9F80-9FE478760923"}"#
+        XCTAssertEqual(FocusCalendarRule.parse(predicate: stored),
+                       .hide(["A896F713-4A08-4CC2-8D5E-D7000A403DFC", "CE2DFC67-69C2-4318-9F80-9FE478760923"]))
+        XCTAssertEqual(FocusCalendarRule.parse(predicate: #"SELF IN {"X"}"#), .show(["X"]))
+        XCTAssertNil(FocusCalendarRule.parse(predicate: "TRUEPREDICATE"))
+    }
+
+    func testFocusActionFromMacOS() throws {
+        let action: [String: Any] = ["SerializedParameters": [
+            "AppIntentDescriptor": ["AppIntentIdentifier": "SetCalendarFocusConfiguration", "BundleIdentifier": "com.apple.iCal"],
+            "calendars": ["identifier": "CD58F7DB-90B1-49BC-9F97-F7B6A4CE5856"],
+        ]]
+        let data = try PropertyListSerialization.data(fromPropertyList: action, format: .binary, options: 0)
+        XCTAssertEqual(FocusCalendarRule.parse(encodedAction: data), .show(["CD58F7DB-90B1-49BC-9F97-F7B6A4CE5856"]))
+    }
+
+    func testActiveFocusFromAssertions() {
+        let json = #"{"data":[{"storeAssertionRecords":[{"assertionDetails":{"assertionDetailsModeIdentifier":"com.apple.donotdisturb.mode.default"}}]}],"header":{"version":8}}"#
+        XCTAssertEqual(SystemFocusStore.activeModeIDs(assertions: Data(json.utf8)), ["com.apple.donotdisturb.mode.default"])
+        // Only invalidated (switched off) assertions: no Focus on.
+        let off = #"{"data":[{"storeInvalidationRecords":[{"invalidationAssertion":{}}]}]}"#
+        XCTAssertEqual(SystemFocusStore.activeModeIDs(assertions: Data(off.utf8)), [])
+        XCTAssertEqual(SystemFocusStore.displayName(modeID: "com.apple.donotdisturb.mode.default", stored: "Do Not Disturb"), "Non disturbare")
+        XCTAssertEqual(SystemFocusStore.displayName(modeID: "X-1", stored: "Studio"), "Studio")
+    }
 }

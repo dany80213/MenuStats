@@ -451,7 +451,31 @@ struct MenubarSettings: View {
             SettingsSection(title: "Anteprima") {
                 MenubarPreview(image: MenubarRenderer.image(for: settings.visibleModules, context: context).image, vertical: true)
             }
-            SettingsSection(title: "Spazio nella barra", footnote: "Su macOS 27, quando accanto al notch non c'è spazio, macOS raccoglie le icone dietro la freccia «, partendo da quelle più lontane dall'orologio. Tenendo MenuStats accanto all'orologio sono le icone delle altre app a finire dietro la freccia. Se lo spazio non basta comunque, MenuStats toglie prima le etichette e poi gli ultimi moduli dell'elenco qui sotto, e torna completo appena lo spazio si libera.") {
+            SettingsSection(title: "Moduli", footnote: "Trascina per cambiare l'ordine. In modalità separata puoi anche ⌘-trascinare le voci nella barra.") {
+                List {
+                    ForEach(settings.moduleOrder) { module in
+                        HStack(spacing: 10) {
+                            Image(systemName: "line.3.horizontal").foregroundStyle(.tertiary)
+                            Toggle(isOn: Binding(get: { settings.isEnabled(module) }, set: { settings.setEnabled(module, $0) })) {
+                                Label(module.name, systemImage: module.symbol).frame(width: 130, alignment: .leading)
+                            }
+                            .disabled(!module.isAvailable)
+                            if !module.isAvailable {
+                                Text(module == .fans ? "Questo Mac non ha ventole" : "Non disponibile su questo Mac")
+                                    .font(.system(size: 11)).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            MenubarPreview(image: MenubarRenderer.image(for: [module], context: context).image)
+                                .opacity(settings.isEnabled(module) ? 1 : 0.4)
+                        }
+                        .padding(.vertical, 2)
+                    }
+                    .onMove { settings.moduleOrder.move(fromOffsets: $0, toOffset: $1) }
+                }
+                .frame(height: CGFloat(settings.moduleOrder.count) * 40 + 8)
+                .scrollDisabled(true)
+            }
+            SettingsSection(title: "Spazio nella barra", footnote: "Su macOS 27, quando accanto al notch non c'è spazio, macOS raccoglie le icone dietro la freccia «, partendo da quelle più lontane dall'orologio. Tenendo MenuStats accanto all'orologio sono le icone delle altre app a finire dietro la freccia. Se lo spazio non basta comunque, MenuStats toglie prima le etichette e poi gli ultimi moduli dell'elenco Moduli qui sopra, e torna completo appena lo spazio si libera.") {
                 Toggle("Tieni MenuStats accanto all'orologio", isOn: $settings.pinNearClock)
                 Toggle("Riduci automaticamente quando lo spazio non basta", isOn: $settings.autoFitMenubar)
                 Divider()
@@ -491,30 +515,6 @@ struct MenubarSettings: View {
                     Button("Ripristina colori predefiniti") { settings.moduleColors = Settings.defaultColors }
                         .buttonStyle(.link)
                 }
-            }
-            SettingsSection(title: "Moduli", footnote: "Trascina per cambiare l'ordine. In modalità separata puoi anche ⌘-trascinare le voci nella barra.") {
-                List {
-                    ForEach(settings.moduleOrder) { module in
-                        HStack(spacing: 10) {
-                            Image(systemName: "line.3.horizontal").foregroundStyle(.tertiary)
-                            Toggle(isOn: Binding(get: { settings.isEnabled(module) }, set: { settings.setEnabled(module, $0) })) {
-                                Label(module.name, systemImage: module.symbol).frame(width: 130, alignment: .leading)
-                            }
-                            .disabled(!module.isAvailable)
-                            if !module.isAvailable {
-                                Text(module == .fans ? "Questo Mac non ha ventole" : "Non disponibile su questo Mac")
-                                    .font(.system(size: 11)).foregroundStyle(.secondary)
-                            }
-                            Spacer()
-                            MenubarPreview(image: MenubarRenderer.image(for: [module], context: context).image)
-                                .opacity(settings.isEnabled(module) ? 1 : 0.4)
-                        }
-                        .padding(.vertical, 2)
-                    }
-                    .onMove { settings.moduleOrder.move(fromOffsets: $0, toOffset: $1) }
-                }
-                .frame(height: CGFloat(settings.moduleOrder.count) * 40 + 8)
-                .scrollDisabled(true)
             }
         }
     }
@@ -841,6 +841,7 @@ struct CalendarSettings: View {
     var model: AppModel
     @ObservedObject var calendar: CalendarService
     @ObservedObject var settings: Settings
+    @ObservedObject private var focus = FocusCalendarFilter.shared
 
     var body: some View {
         SettingsSection(title: "Calendario",
@@ -873,6 +874,23 @@ struct CalendarSettings: View {
                 }
             }
         }
+        SettingsSection(title: "Full immersion",
+                        footnote: "MenuStats usa i filtri Calendario delle tue full immersion (Impostazioni di Sistema ▸ Full immersion ▸ una modalità ▸ Filtri full immersion ▸ Calendario): mentre una è attiva, la scheda Data e gli avvisi nella barra mostrano solo i calendari che quel filtro lascia passare. macOS tiene queste impostazioni protette: per leggerle MenuStats ha bisogno dell'Accesso completo al disco. Le legge soltanto, senza cambiare nulla.") {
+            Toggle("Segui la full immersion di macOS", isOn: $settings.calendarFollowFocus)
+            if settings.calendarFollowFocus {
+                HStack(spacing: 8) {
+                    Image(systemName: focusSymbol).foregroundStyle(focusColor)
+                    Text(focusStatus).fixedSize(horizontal: false, vertical: true)
+                    Spacer()
+                    if focus.status == .noPermission {
+                        Button("Apri Accesso completo al disco…") { FocusCalendarFilter.openFullDiskAccessSettings() }
+                        Button("Riprova") { focus.refresh(force: true) }
+                    } else {
+                        Button("Apri Full immersion…") { FocusCalendarFilter.openFocusSettings() }
+                    }
+                }
+            }
+        }
         SettingsSection(title: "Avvisi nella barra dei menu",
                         footnote: "Poco prima di un impegno i moduli della barra si fanno da parte e al loro posto compare l'evento: un anello del colore del calendario conta i minuti, sopra il titolo ci sono orario e luogo, e un titolo lungo scorre. Se più impegni cadono insieme, scorrono uno dopo l'altro. Un clic sull'avviso apre la scheda Data su quel giorno. Gli eventi di tutto il giorno non vengono annunciati.") {
             Toggle("Annuncia gli impegni nella barra", isOn: $settings.calendarAlerts)
@@ -896,6 +914,48 @@ struct CalendarSettings: View {
             }
             .disabled(!settings.calendarAlerts)
             .frame(maxWidth: 360, alignment: .leading)
+        }
+    }
+
+    private var focusSymbol: String {
+        switch focus.status {
+        case .noPermission: "lock.fill"
+        case .active: "moon.fill"
+        case .off, .inactive: "moon"
+        }
+    }
+
+    private var focusColor: Color {
+        switch focus.status {
+        case .noPermission: .orange
+        case .active: .indigo
+        case .off, .inactive: .secondary
+        }
+    }
+
+    private var focusStatus: String {
+        switch focus.status {
+        case .off: return ""
+        case .noPermission:
+            return "MenuStats non può leggere le full immersion: attiva MenuStats in Privacy e sicurezza ▸ Accesso completo al disco."
+        case .inactive:
+            return "Nessuna full immersion attiva: valgono i calendari scelti qui sopra."
+        case .active(let active):
+            let names = { (ids: Set<String>) in calendar.calendars.filter { ids.contains($0.id) }.map(\.title) }
+            switch active.calendars {
+            case nil:
+                return "\(active.name) è attiva, senza filtro Calendario: valgono i calendari scelti qui sopra."
+            case .show(let ids)?:
+                let shown = names(ids)
+                return shown.isEmpty ? "\(active.name) è attiva: i calendari del suo filtro non sono su questo Mac."
+                    : "\(active.name) è attiva: solo \(shown.joined(separator: ", "))."
+            case .hide(let ids)?:
+                let visible = CalendarService.visibleCalendarIDs(all: calendar.calendars.map(\.id), hidden: settings.hiddenCalendars,
+                                                                 focus: .hide(ids))
+                let shown = names(Set(visible))
+                return shown.isEmpty ? "\(active.name) è attiva: il suo filtro nasconde tutti i calendari."
+                    : "\(active.name) è attiva: solo \(shown.joined(separator: ", "))."
+            }
         }
     }
 
@@ -984,7 +1044,7 @@ struct AboutSettings: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             SettingsSection(title: "MenuStats") {
-                Text("Monitor di sistema per la barra dei menu. Implementazione indipendente ispirata a iStat Menus.")
+                Text("Monitor di sistema per la barra dei menu.")
                 Text("Versione \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "sviluppo")")
                     .foregroundStyle(.secondary)
             }

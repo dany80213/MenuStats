@@ -39,7 +39,7 @@ meteo, data e un modulo per tenere il Mac sveglio. Compatto, preciso e leggero.
 - **Sveglio quando serve**: per un tempo a scelta, finché un file si scarica, finché un'app è aperta o finché
   un'IA (Claude Code e simili) sta lavorando.
 - **Valori verificati**: `--verify` confronta 18 valori con gli strumenti di macOS. La temperatura CPU è la
-  stessa che mostra iStat Menus.
+  media dei sensori dei singoli core.
 - **Leggero davvero**: circa l'1% di un core a riposo. Legge spesso solo ciò che stai guardando.
 - **Sempre visibile, anche col notch**: MenuStats resta accanto all'orologio, così sono le altre icone a finire
   dietro la freccia di macOS. Se lo spazio non basta comunque, toglie le etichette e gli ultimi moduli finché ci sta.
@@ -63,7 +63,7 @@ meteo, data e un modulo per tenere il Mac sveglio. Compatto, preciso e leggero.
    in Impostazioni di Sistema ▸ Generali ▸ **Elementi login**.
 
 > **Requisiti**: Mac con Apple Silicon e macOS 13 o successivo (macOS 14 per i widget della scrivania). Sviluppato e verificato su MacBook Pro M3 Pro con
-> macOS 27; i sensori dell'M4 Pro sono stati confrontati con iStat Menus.
+> macOS 27; i sensori dell'M4 Pro sono stati verificati sotto carico.
 
 ## 🧩 Moduli
 
@@ -75,7 +75,7 @@ meteo, data e un modulo per tenere il Mac sveglio. Compatto, preciso e leggero.
 | **Rete** | upload/download, totale, **grafici doppi** upload/download | traffico, connessione, **IP pubblico e VPN** con bandiera, app che usano la rete |
 | **Temperature** | CPU (media dei core), massima, SSD, batteria | ogni core della CPU e della GPU, SoC, SSD, stato termico |
 | **Ventole** | giri, percentuale, solo icona animata | velocità, controllo **Automatico / Personalizzato**, consumo del sistema |
-| **Batteria** | percentuale, nell'icona, tempo, watt | carica, salute ufficiale Apple, cicli, potenza, **limite di carica**, basso consumo |
+| **Batteria** | percentuale, nell'icona, tempo, percentuale e tempo, watt | carica, salute ufficiale Apple, cicli, potenza, **limite di carica**, basso consumo |
 | **Meteo** · *facoltativo* | icona + temperatura | condizioni attuali, prossime 24 ore, 7 giorni con barre min/max |
 | **Data e ora** · *facoltativo* | 9 disposizioni, anche **icona calendario** con giorno e mese, 12/24 ore | calendario del mese con i tuoi **impegni**, prossimo impegno, alba e tramonto |
 | **Sveglio** · *facoltativo* | tazza con vapore, tempo rimanente | durata, durata personalizzata, finché un file si scarica, un'app è aperta o un'IA lavora; schermo acceso o libero, fine con batteria scarica |
@@ -114,6 +114,12 @@ sono orario e luogo, un titolo lungo scorre, un'icona segnala la videochiamata. 
 al loro posto. Più impegni insieme scorrono uno dopo l'altro; un clic sull'avviso apre la scheda Data su quel giorno.
 In Impostazioni ▸ Data e ora scegli anticipo, durata, ripetizioni e intervallo, l'avviso all'inizio, quali calendari
 usare, e c'è **Prova avviso**. Gli impegni restano sul Mac: nessun dato esce.
+
+**Segue la Full immersion.** Se in Impostazioni di Sistema ▸ Full immersion una modalità ha il filtro **Calendario**,
+MenuStats lo rispetta: mentre quella full immersion è attiva, la scheda Data e gli avvisi mostrano solo i calendari
+che il filtro lascia passare, e quando finisce torna la tua scelta solita. Non devi rifare nulla in MenuStats. macOS
+tiene queste impostazioni protette, quindi serve l'**Accesso completo al disco** (Privacy e sicurezza): MenuStats le
+legge soltanto. Si spegne in Impostazioni ▸ Data e ora.
 
 ## 📈 Grafici di rete e disco
 
@@ -211,7 +217,7 @@ MenuStats legge spesso **solo ciò che è sullo schermo**:
 `swift run MenuStats --verify` confronta 18 valori con `top`, `sysctl`, `diskutil`, `route`, `ipconfig`, `pmset` e
 Informazioni di Sistema, e stampa ✓ o ✗ per ognuno.
 
-- **Temperatura CPU**: media dei sensori SMC dei singoli core, lo stesso calcolo di iStat Menus.
+- **Temperatura CPU**: media dei sensori SMC dei singoli core.
 - **Disco**: "libero" è lo spazio realmente libero, come in `df` e diskutil. Lo spazio che macOS può liberare da
   solo è mostrato a parte come "eliminabile".
 - **Batteria**: la capacità massima è quella di Apple, non una stima.
@@ -425,6 +431,5 @@ Grazie a chi ha già contribuito:
 
 ---
 
-<sub>MenuStats è un progetto indipendente ispirato a iStat Menus: non contiene codice o risorse di Bjango e non è
-affiliato a Bjango. Usa API private di macOS (SMC, sensori HID, PowerUI) che potrebbero cambiare con gli
+<sub>MenuStats è un progetto indipendente. Usa API private di macOS (SMC, sensori HID, PowerUI) che potrebbero cambiare con gli
 aggiornamenti di sistema.</sub>

@@ -232,12 +232,16 @@ enum MenubarRenderer {
                                    lowPower: dynamic && context.snapshot.lowPowerMode)
         let low = dynamic && !battery.onACPower && battery.percent <= 0.2
 
+        let time = battery.minutesRemaining.map { Format.duration(minutes: $0) } ?? (battery.onACPower ? "AC" : "…")
         switch context.options.batteryStyle {
         case .percent:
             return compose(.battery, [glyph, .text("BAT", Format.percent(battery.percent), template: "100%", emphasized: low)])
         case .time:
-            let time = battery.minutesRemaining.map { Format.duration(minutes: $0) } ?? (battery.onACPower ? "AC" : "…")
             return compose(.battery, [glyph, .text(battery.isCharging ? "PIENO" : "RESTA", time, template: "10:00", emphasized: low)])
+        case .percentTime:
+            // Percentage above, time left (or to full, while charging) below; dimmed while the battery runs low.
+            return compose(.battery, [glyph, .stacked(top: ("", Format.percent(battery.percent), !low),
+                                                      bottom: ("", time, !low))])
         case .watts:
             let watts = battery.watts.map { String(format: "%.0fW", abs($0)) } ?? "—"
             return compose(.battery, [glyph, .text(battery.isCharging ? "IN" : "OUT", watts, template: "100W")])
@@ -483,7 +487,7 @@ enum MenubarRenderer {
             }
 
         case .graph(let values, _):
-            // Nearly full menu bar height, like iStat Menus' CPU graph.
+            // Nearly full menu bar height.
             let plot = rect.insetBy(dx: 0.5, dy: 2.5)
             // Faint backdrop so the graph reads as a graph even at low load.
             ink.base.withAlphaComponent(0.08).setFill()
