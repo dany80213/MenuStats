@@ -180,6 +180,9 @@ Un file scaricato dall'app non ha il flag di quarantena, quindi macOS non chiede
   modificabile (in CPU sia Utente che Sistema). Rete e disco usano gli stessi colori nella barra e nella tendina.
 - **Aspetto**: come macOS, chiaro, scuro o alba e tramonto; tendina con **sfondo pieno** (leggibile su qualsiasi
   sfondo) o trasparente.
+- **Preset di colori**: 14 combinazioni (Oceano, Tramonto, Neon, Grafite…) da provare passandoci sopra e applicare
+  con un clic; cambiano tutti i colori insieme.
+- **Barra compatta**: ogni modulo prende solo lo spazio del valore attuale, e lo spazio tra i moduli si regola.
 - **Icone dinamiche** attivabili o disattivabili.
 - **Sezioni della tendina** da nascondere, dalle Impostazioni o con clic destro.
   Una sezione nascosta non viene nemmeno misurata.

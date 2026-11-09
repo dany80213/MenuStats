@@ -619,7 +619,7 @@ struct BatteryTab: View {
                     })) {
                         Label("Modalità basso consumo", systemImage: "leaf")
                     }
-                    .toggleStyle(.switch).controlSize(.small).disabled(changingLowPower)
+                    .toggleStyle(.trailingSwitch).controlSize(.small).disabled(changingLowPower)
                     ChargeLimitPicker(hardware: model.hardware)
                     Button { SystemActions.openBatterySettings() } label: {
                         Label("Impostazioni Batteria…", systemImage: "gearshape")

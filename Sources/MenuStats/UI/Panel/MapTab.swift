@@ -157,7 +157,7 @@ struct ProximityLockCard: View {
             Toggle(isOn: $settings.proximityLockEnabled) {
                 Label("Blocca il Mac se mi allontano", systemImage: "lock.shield")
             }
-            .toggleStyle(.switch).controlSize(.small)
+            .toggleStyle(.trailingSwitch).controlSize(.small)
             if names.isEmpty {
                 Text("Scegli i dispositivi da controllare nelle Impostazioni: senza, il blocco non si attiva.")
                     .font(.system(size: 11)).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)

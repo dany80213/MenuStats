@@ -68,4 +68,39 @@ final class AppearanceColorTests: XCTestCase {
         XCTAssertEqual(groups.count, 1)
         XCTAssertEqual(groups[0].power, 0.75, accuracy: 0.001)
     }
+
+    func testPresetSetsEveryColorAndCanBeRestored() {
+        let settings = Settings.shared
+        let saved = (settings.panelColors, settings.graphSeriesColors, settings.moduleColors, settings.colorPreset, settings.colorPresetFingerprint)
+        defer {
+            settings.panelColors = saved.0; settings.graphSeriesColors = saved.1; settings.moduleColors = saved.2
+            settings.colorPreset = saved.3; settings.colorPresetFingerprint = saved.4
+        }
+        let ocean = ColorPreset.all.first { $0.id == "ocean" }!
+        settings.apply(ocean)
+        for tab in DashboardTab.allCases {
+            for role in tab.colorRoles.map(\.index) {
+                XCTAssertEqual(settings.panelColorHex(tab, role), ocean.hex(tab: tab, role: role), "\(tab) \(role)")
+            }
+        }
+        XCTAssertEqual(settings.graphSeriesColors[.download], ocean.palette[0])
+        XCTAssertNotEqual(settings.graphSeriesColors[.read], settings.graphSeriesColors[.download])
+        XCTAssertEqual(settings.moduleColors[.cpu], ocean.palette[0])
+        XCTAssertEqual(settings.currentPreset?.preset.id, "ocean")
+        XCTAssertEqual(settings.currentPreset?.edited, false)
+        // Editing one color afterwards shows as "modificato".
+        settings.setPanelColor("#000000", tab: .cpu, role: 1)
+        XCTAssertEqual(settings.currentPreset?.edited, true)
+        // The MenuStats preset puts back the built-in colors.
+        settings.apply(ColorPreset.all[0])
+        XCTAssertTrue(settings.panelColors.isEmpty)
+        XCTAssertEqual(settings.graphSeriesColors, GraphSeries.defaultColors)
+        XCTAssertEqual(settings.moduleColors, Settings.defaultColors)
+        XCTAssertTrue(ColorPreset.all.allSatisfy { $0.palette.count == 5 && $0.palette.allSatisfy { NSColor(hex: $0) != nil } })
+    }
+
+    func testLidStateIsReadable() {
+        // On a MacBook with the lid open, or a desktop: never reported closed.
+        XCTAssertFalse(AwakeController.lidIsClosed())
+    }
 }

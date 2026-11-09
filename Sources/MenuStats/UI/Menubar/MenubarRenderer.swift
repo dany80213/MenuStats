@@ -13,7 +13,8 @@ struct MenubarSegment {
 /// Dynamic icons react to what the Mac is doing (load, heat, fans, charging, traffic).
 enum MenubarRenderer {
     static let height: CGFloat = 22
-    static let segmentGap: CGFloat = 10
+    /// Space between two modules in the single menu bar item (Settings ▸ Barra dei menu ▸ Spazio tra i moduli).
+    static var segmentGap: CGFloat { CGFloat(Settings.shared.menubarSpacing) }
 
     struct Context {
         var snapshot: Snapshot
@@ -58,6 +59,7 @@ enum MenubarRenderer {
     static func segment(for module: ModuleID, context: Context) -> MenubarSegment {
         let options = context.options
         showLabels = options.showLabels
+        dynamicWidth = options.dynamicWidth
         ink = Ink(module: module, options: options, severity: Severity.of(
             module, snapshot: context.snapshot, cpuBusy: options.cpuBusyThreshold,
             temperatureHot: options.temperatureHotThreshold, source: options.sensorSource))
@@ -385,6 +387,8 @@ enum MenubarRenderer {
     private static let powerGlyphWidth: CGFloat = 7
     /// Set per segment from the context (rendering always happens on the main thread).
     private static var showLabels = true
+    /// Each value takes only the room it needs ("5%" narrower than "100%"), instead of the widest it could get.
+    private static var dynamicWidth = true
     private static var ink = Ink(base: .black, accent: .black, value: .black)
 
     /// Colors for one segment.
@@ -418,8 +422,9 @@ enum MenubarRenderer {
     private static func compose(_ module: ModuleID, _ parts: [Part]) -> MenubarSegment {
         // Captured now: the image draws lazily, after other segments may have changed the statics.
         let labels = Self.showLabels
+        let dynamic = Self.dynamicWidth
         let ink = Self.ink
-        let widths = parts.map { width(of: $0, showLabels: labels) }
+        let widths = parts.map { width(of: $0, showLabels: labels, dynamic: dynamic) }
         let total = widths.reduce(0, +) + partGap * CGFloat(max(parts.count - 1, 0))
         return MenubarSegment(module: module, width: ceil(total)) { rect in
             var x = rect.minX
@@ -430,14 +435,16 @@ enum MenubarRenderer {
         }
     }
 
-    private static func width(of part: Part, showLabels: Bool) -> CGFloat {
+    private static func width(of part: Part, showLabels: Bool, dynamic: Bool) -> CGFloat {
         switch part {
-        case .text(let label, _, let template, _):
-            let valueWidth = measure(template, valueFont(showLabels))
+        case .text(let label, let value, let template, _):
+            let valueWidth = dynamic ? measure(value, valueFont(showLabels)) : measure(template, valueFont(showLabels))
             return showLabels ? max(valueWidth, measure(label, labelFont)) : valueWidth
         case .stacked(let top, let bottom):
-            let valueWidth = max(measure("999K", stackFont), measure(top.1, stackFont), measure(bottom.1, stackFont))
-            return max(measure(top.0, stackFont), measure(bottom.0, stackFont)) + 2 + valueWidth
+            let values = max(measure(top.1, stackFont), measure(bottom.1, stackFont))
+            let valueWidth = dynamic ? values : max(measure("999K", stackFont), values)
+            let prefix = max(measure(top.0, stackFont), measure(bottom.0, stackFont))
+            return (prefix > 0 ? prefix + 2 : 0) + valueWidth
         case .graph(_, let width): return width
         case .dualGraph(_, _, _, _, _, let width): return width
         case .cores(let cores): return CGFloat(max(cores.count, 1)) * 3
@@ -447,9 +454,9 @@ enum MenubarRenderer {
         case .cup: return 16
         case .calendarPage: return 18
         case .plain(let text, let template):
-            return max(measure(text, plainFont), template.map { measure($0, plainFont) } ?? 0)
+            return max(measure(text, plainFont), dynamic ? 0 : template.map { measure($0, plainFont) } ?? 0)
         case .labeled(let label, let value, let template):
-            return max(measure(label, labelFont), measure(value, valueFont(true)), measure(template, valueFont(true)))
+            return max(measure(label, labelFont), measure(value, valueFont(true)), dynamic ? 0 : measure(template, valueFont(true)))
         case .battery(_, let charging, let pluggedIn, let lowPower):
             return ((charging || pluggedIn) ? powerGlyphWidth + 2 : 0) + 23.5 + (lowPower ? 12 : 0)
         case .batteryPercent(_, let charging, let pluggedIn, let lowPower, _):
@@ -478,12 +485,13 @@ enum MenubarRenderer {
 
         case .stacked(let top, let bottom):
             let prefixWidth = max(measure(top.0, stackFont), measure(bottom.0, stackFont))
+            let valueX = prefixWidth > 0 ? prefixWidth + 2 : 0
             for (line, y) in [(top, 10.5), (bottom, 0.5)] as [((String, String, Bool), CGFloat)] {
                 let color = line.2 ? ink.value : ink.base.withAlphaComponent(0.45)
                 let prefix = line.2 ? ink.accent : color
                 drawText(line.0, font: stackFont, color: prefix, in: NSRect(x: rect.minX, y: y, width: prefixWidth, height: 11))
-                drawText(line.1, font: stackFont, color: color, in: NSRect(x: rect.minX + prefixWidth + 2, y: y,
-                                                                         width: rect.width - prefixWidth - 2, height: 11), alignment: .right)
+                drawText(line.1, font: stackFont, color: color, in: NSRect(x: rect.minX + valueX, y: y,
+                                                                         width: rect.width - valueX, height: 11), alignment: .right)
             }
 
         case .graph(let values, _):
@@ -793,6 +801,7 @@ enum MenubarRenderer {
 /// Value snapshot of the settings the renderer needs, so previews can render any style.
 struct MenubarOptions {
     var showLabels: Bool
+    var dynamicWidth: Bool
     var dynamicIcons: Bool
     var severityColors: Bool
     var colorIcons: Bool
@@ -824,6 +833,7 @@ struct MenubarOptions {
 
     init(_ settings: Settings) {
         showLabels = settings.showLabels
+        dynamicWidth = settings.menubarDynamicWidth
         dynamicIcons = settings.dynamicIcons
         severityColors = settings.severityColors
         colorIcons = settings.colorIcons

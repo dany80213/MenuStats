@@ -137,7 +137,7 @@ struct AwakeTab: View {
             Toggle(isOn: Binding(get: { settings.awakeWatchAI }, set: { awake.setWatchAI($0) })) {
                 Label("Sveglio finché l'IA lavora", systemImage: "sparkles")
             }
-            .toggleStyle(.switch).controlSize(.small)
+            .toggleStyle(.trailingSwitch).controlSize(.small)
             Text(aiCaption).font(.system(size: 10.5)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -157,12 +157,12 @@ struct AwakeTab: View {
             Toggle(isOn: Binding(get: { state.isActive ? state.allowsDisplaySleep : settings.awakeAllowDisplaySleep }, set: { awake.setAllowDisplaySleep($0) })) {
                 Label("Lascia spegnere lo schermo", systemImage: "display")
             }
-            .toggleStyle(.switch).controlSize(.small)
+            .toggleStyle(.trailingSwitch).controlSize(.small)
             if HardwarePresence.hasBattery {
                 Toggle(isOn: Binding(get: { settings.awakeLidClosed }, set: { awake.setLidClosed($0) })) {
                     Label("Sveglio anche col coperchio chiuso", systemImage: "laptopcomputer")
                 }
-                .toggleStyle(.switch).controlSize(.small)
+                .toggleStyle(.trailingSwitch).controlSize(.small)
                 .disabled(!hardware.canUseHelper && !settings.awakeLidClosed)
                 if let lidCaption {
                     Text(lidCaption).font(.system(size: 10.5)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
@@ -170,7 +170,7 @@ struct AwakeTab: View {
                 Toggle(isOn: $settings.awakeEndOnLowBattery) {
                     Label("Termina sotto il \(Format.percent(settings.awakeLowBatteryThreshold)) di batteria", systemImage: "battery.25percent")
                 }
-                .toggleStyle(.switch).controlSize(.small)
+                .toggleStyle(.trailingSwitch).controlSize(.small)
             }
         }
     }
@@ -197,8 +197,9 @@ struct AwakeTab: View {
         }
         guard settings.awakeLidClosed else { return nil }
         if let error = hardware.lidError { return error }
-        if hardware.lidAwake { return "Anche Stop dal menu Apple è sospeso finché dura la sessione." }
-        return state.isActive ? nil : "Vale per la prossima sessione."
+        let screen = "Chiudendo il coperchio lo schermo si spegne subito, il Mac continua a lavorare."
+        if hardware.lidAwake { return screen + " Anche Stop dal menu Apple è sospeso finché dura la sessione." }
+        return state.isActive ? screen : screen + " Vale per la prossima sessione."
     }
 
     // MARK: Actions

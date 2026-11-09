@@ -143,7 +143,7 @@ enum SystemFocusStore {
     }
 
     /// The Focus on right now (nil: none). With several on, the first that has a Calendar filter.
-    static func read() -> Result<ActiveFocus?, ReadError> {
+    static func read(in directory: URL = directory) -> Result<ActiveFocus?, ReadError> {
         let assertionsURL = directory.appendingPathComponent("Assertions.json")
         guard let assertions = try? Data(contentsOf: assertionsURL) else { return .failure(.noPermission) }
         let active = activeModeIDs(assertions: assertions)
@@ -236,6 +236,41 @@ final class FocusCalendarFilter: ObservableObject {
     static func openFocusSettings() {
         if let url = URL(string: "x-apple.systempreferences:com.apple.Focus-Settings.extension") {
             NSWorkspace.shared.open(url)
+        }
+    }
+}
+
+/// Asks once per version for Full Disk Access when "Follow Focus" is on but macOS keeps the Focus files closed
+/// (first launch, or an update signed differently: macOS then sees a new app and forgets the permission).
+enum FocusPermissionAlert {
+    private static let shownKey = "focusPermissionAlertVersion"
+    private static var showing = false
+
+    static func showIfNeeded(settings: Settings) {
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev"
+        guard settings.calendarFollowFocus, !showing, UserDefaults.standard.string(forKey: shownKey) != version else { return }
+        UserDefaults.standard.set(version, forKey: shownKey)
+        showing = true
+        defer { showing = false }
+
+        let alert = NSAlert()
+        alert.messageText = "MenuStats non può leggere le full immersion"
+        alert.informativeText = """
+            Per mostrare solo i calendari della full immersion attiva, MenuStats deve leggere le impostazioni di macOS, \
+            che sono protette. Attiva MenuStats in Impostazioni di Sistema ▸ Privacy e sicurezza ▸ Accesso completo al disco. \
+            MenuStats le legge soltanto, senza cambiare nulla.
+
+            Se la trovi già nell'elenco, spegnila e riaccendila: dopo un aggiornamento macOS può non riconoscerla più.
+            """
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "Apri Accesso completo al disco")
+        alert.addButton(withTitle: "Più tardi")
+        alert.addButton(withTitle: "Non seguire la full immersion")
+        NSApp.activate(ignoringOtherApps: true)
+        switch alert.runModal() {
+        case .alertFirstButtonReturn: FocusCalendarFilter.openFullDiskAccessSettings()
+        case .alertThirdButtonReturn: settings.calendarFollowFocus = false
+        default: break
         }
     }
 }

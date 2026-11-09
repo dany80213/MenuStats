@@ -98,7 +98,7 @@ struct SettingsView: View {
 
     @ViewBuilder private var detail: some View {
         switch page ?? .general {
-        case .general: GeneralSettings(settings: settings, today: model.weather.report?.today)
+        case .general: GeneralSettings(settings: settings, today: model.weather.report?.today, model: model, snapshot: feed.snapshot)
         case .menubar: MenubarSettings(model: model, snapshot: feed.snapshot, settings: settings)
         case .module(let module): ModuleSettings(module: module, model: model, snapshot: feed.snapshot, settings: settings)
         case .widgets: WidgetSettings(model: model)
@@ -185,10 +185,17 @@ struct GeneralSettings: View {
     @ObservedObject var settings: Settings
     /// Sunrise and sunset for "Alba e tramonto", when the Weather module knows them.
     var today: WeatherReport.Day? = nil
+    /// For the menu bar preview of the color presets.
+    var model: AppModel? = nil
+    var snapshot: Snapshot? = nil
     @State private var loginEnabled = LoginItem.status == .enabled
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
+            GeneralHero(settings: settings)
+            SettingsSection(title: "Colori", footnote: "Un preset cambia tutti i colori insieme: le schede della tendina, i grafici di rete e disco e le icone nella barra. Passa sopra a un preset per vederlo, fai clic per applicarlo. Poi puoi cambiare ogni colore dalla pagina del suo modulo.") {
+                ColorPresetPicker(settings: settings, menubar: menubarPreview)
+            }
             SettingsSection(title: "Aspetto", footnote: "Vale per la tendina e per questa finestra; le icone nella barra dei menu seguono macOS. Come macOS segue Impostazioni di Sistema ▸ Aspetto (anche quando lì è su Automatico). Alba e tramonto è l'orario di MenuStats: scura dal tramonto all'alba della città del Meteo, oppure dalle 20 alle 7 se il Meteo è spento. Sfondo pieno toglie la trasparenza, così le scritte restano leggibili su qualsiasi sfondo. Puoi cambiare entrambi anche dal pulsante in fondo alla tendina.") {
                 AppearancePicker(settings: settings)
                 Picker("Sfondo della tendina", selection: $settings.panelBackground) {
@@ -235,6 +242,24 @@ struct GeneralSettings: View {
 }
 
 /// Export to / import from a file, e.g. to bring the same setup to another Mac.
+extension GeneralSettings {
+    /// The menu bar with the enabled modules, icons tinted with the given colors.
+    var menubarPreview: (([ModuleID: NSColor]) -> NSImage)? {
+        guard let model, let snapshot else { return nil }
+        return { colors in
+            var options = MenubarOptions(settings)
+            options.colorIcons = true
+            options.severityColors = false
+            options.moduleColors = colors
+            let context = MenubarRenderer.Context(snapshot: snapshot, options: options,
+                                                  recent: { model.recentValues($0, count: $1) },
+                                                  weather: model.weather.report, weatherConfigured: settings.weatherLocation != nil,
+                                                  awake: model.awake.state)
+            return MenubarRenderer.image(for: settings.visibleModules, context: context).image
+        }
+    }
+}
+
 struct SettingsBackupSection: View {
     @State private var message: String?
 
@@ -496,6 +521,20 @@ struct MenubarSettings: View {
                 }
                 .pickerStyle(.radioGroup)
                 Toggle("Mostra le etichette sopra i valori (CPU, MEM, …)", isOn: $settings.showLabels)
+                Toggle("Larghezza che si adatta al valore", isOn: $settings.menubarDynamicWidth)
+                Text(settings.menubarDynamicWidth
+                     ? "Ogni modulo occupa solo lo spazio che serve adesso: «5%» è più stretto di «100%». Quando il numero cresce, il modulo si allarga."
+                     : "Ogni modulo tiene sempre lo spazio del valore più lungo (per esempio «100%»): niente si sposta, ma resta spazio vuoto.")
+                    .font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                HStack {
+                    Text("Spazio tra i moduli")
+                    Slider(value: $settings.menubarSpacing, in: 2...20, step: 1).frame(width: 200)
+                    Text("\(Int(settings.menubarSpacing)) pt").monospacedDigit().foregroundStyle(.secondary).frame(width: 40, alignment: .leading)
+                }
+                if settings.layout == .separate {
+                    Text("Con una voce per modulo lo spazio fra le voci lo decide macOS: lo spazio scelto qui vale per la voce unica.")
+                        .font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                }
                 Toggle("Icone dinamiche: cambiano in base a cosa fa il Mac", isOn: $settings.dynamicIcons)
                 if settings.dynamicIcons {
                     Text("Ventola che gira quando le ventole sono attive · fiamma con CPU sotto carico · termometro che sale e avviso di rallentamento termico · frecce di rete e disco accese solo con traffico · batteria con fulmine, spina o foglia (basso consumo) · avviso con pressione di memoria alta.")

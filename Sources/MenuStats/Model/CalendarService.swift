@@ -74,8 +74,14 @@ final class CalendarService: ObservableObject {
             DispatchQueue.main.async { self?.reload() }
         }.store(in: &cancellables)
         let focus = FocusCalendarFilter.shared
-        focus.$status.dropFirst().removeDuplicates().sink { [weak self] _ in
-            DispatchQueue.main.async { self?.reload() }
+        focus.$status.dropFirst().removeDuplicates().sink { [weak self] status in
+            DispatchQueue.main.async {
+                self?.reload()
+                // Only worth asking when there are calendars to filter.
+                if status == .noPermission, self?.access == .granted, let settings = self?.settings {
+                    FocusPermissionAlert.showIfNeeded(settings: settings)
+                }
+            }
         }.store(in: &cancellables)
         focus.setEnabled(settings.calendarFollowFocus)
         settings.$calendarFollowFocus.dropFirst().removeDuplicates().sink { focus.setEnabled($0) }.store(in: &cancellables)

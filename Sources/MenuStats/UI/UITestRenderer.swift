@@ -39,7 +39,7 @@ enum UITestRenderer {
         let pages: [(String, AnyView)] = [
             ("widgets", AnyView(WidgetSettings(model: model))),
             ("updates", AnyView(UpdateSettings(updater: model.updater))),
-            ("general", AnyView(GeneralSettings(settings: settings))),
+            ("general", AnyView(GeneralSettings(settings: settings, model: model, snapshot: model.snapshot))),
             ("menubar", AnyView(MenubarSettings(model: model, snapshot: model.snapshot, settings: settings))),
             ("cpu", AnyView(ModuleSettings(module: .cpu, model: model, snapshot: model.snapshot, settings: settings))),
             ("network", AnyView(ModuleSettings(module: .network, model: model, snapshot: model.snapshot, settings: settings))),

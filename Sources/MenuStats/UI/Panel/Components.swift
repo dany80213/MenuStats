@@ -462,3 +462,21 @@ struct MetricChart: View {
         return formatter
     }
 }
+
+// MARK: - Switches
+
+/// Label on the left, switch on the right edge of the card: switches line up whatever the label's length.
+struct TrailingSwitchToggleStyle: ToggleStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 8) {
+            configuration.label
+            Spacer(minLength: 8)
+            Toggle("", isOn: configuration.$isOn).labelsHidden().toggleStyle(.switch)
+        }
+        .contentShape(Rectangle())
+    }
+}
+
+extension ToggleStyle where Self == TrailingSwitchToggleStyle {
+    static var trailingSwitch: TrailingSwitchToggleStyle { TrailingSwitchToggleStyle() }
+}

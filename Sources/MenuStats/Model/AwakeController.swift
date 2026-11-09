@@ -240,25 +240,84 @@ final class AwakeController: ObservableObject {
         hardware?.setLidAwake(false)
     }
 
-    // MARK: - Display sleep while the lid is held
+    // MARK: - Display while the lid is held
 
+    /// The lid is closed: the built-in screen is turned off at once (nobody can see it and it drains the battery),
+    /// whatever "Lascia spegnere lo schermo" says; the Mac keeps working. With the lid open, when the session lets the
+    /// display sleep, it goes off after the idle delay set in macOS, which "SleepDisabled" would otherwise ignore.
     private func startDisplayGuard() {
         guard displayTimer == nil else { return }
-        let timer = Timer(timeInterval: 30, repeats: true) { [weak self] _ in self?.sleepDisplayIfIdle() }
-        timer.tolerance = 5
+        let timer = Timer(timeInterval: 3, repeats: true) { [weak self] _ in self?.guardDisplay() }
+        timer.tolerance = 1
         RunLoop.main.add(timer, forMode: .common)
         displayTimer = timer
+        guardDisplay()
+    }
+
+    private var lidWasClosed = false
+    private var displaySleepCache: (minutes: Int?, time: Date) = (nil, .distantPast)
+
+    private func guardDisplay() {
+        guard state.isActive else { return }
+        if Self.lidIsClosed() {
+            if !lidWasClosed {
+                lidWasClosed = true
+                // The "screen on" assertion would wake the display again: not needed with the lid closed.
+                releaseAssertion(&displayAssertion)
+            }
+            // In clamshell mode with an external display the user works on that one: leave it alone.
+            if !Self.hasAwakeExternalDisplay(), Self.builtInDisplayIsAwake() { Self.sleepDisplayNow() }
+            return
+        }
+        if lidWasClosed {
+            lidWasClosed = false
+            if !state.allowsDisplaySleep, displayAssertion == IOPMAssertionID(kIOPMNullAssertionID) {
+                _ = createAssertion(kIOPMAssertPreventUserIdleDisplaySleep, "MenuStats: schermo acceso", &displayAssertion)
+            }
+        }
+        sleepDisplayIfIdle()
     }
 
     private func sleepDisplayIfIdle() {
-        guard state.isActive, state.allowsDisplaySleep, let minutes = Self.displaySleepMinutes(), minutes > 0,
-              CGDisplayIsAsleep(CGMainDisplayID()) == 0 else { return }
+        guard state.allowsDisplaySleep, CGDisplayIsAsleep(CGMainDisplayID()) == 0 else { return }
+        // `pmset -g` is a process launch: read the delay once a minute.
+        if Date().timeIntervalSince(displaySleepCache.time) > 60 { displaySleepCache = (Self.displaySleepMinutes(), Date()) }
+        guard let minutes = displaySleepCache.minutes, minutes > 0 else { return }
         let idle = CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: CGEventType(rawValue: ~0)!)
         guard idle >= Double(minutes) * 60 else { return }
+        Self.sleepDisplayNow()
+    }
+
+    static func sleepDisplayNow() {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/pmset")
         process.arguments = ["displaysleepnow"]
         try? process.run()
+    }
+
+    /// "AppleClamshellState" of the power manager: true while the lid is closed. Readable without privileges.
+    static func lidIsClosed() -> Bool {
+        let root = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("IOPMrootDomain"))
+        guard root != 0 else { return false }
+        defer { IOObjectRelease(root) }
+        let value = IORegistryEntryCreateCFProperty(root, "AppleClamshellState" as CFString, kCFAllocatorDefault, 0)
+        return (value?.takeRetainedValue() as? Bool) ?? false
+    }
+
+    private static func onlineDisplays() -> [CGDirectDisplayID] {
+        var count: UInt32 = 0
+        guard CGGetOnlineDisplayList(0, nil, &count) == .success, count > 0 else { return [] }
+        var displays = [CGDirectDisplayID](repeating: 0, count: Int(count))
+        guard CGGetOnlineDisplayList(count, &displays, &count) == .success else { return [] }
+        return Array(displays.prefix(Int(count)))
+    }
+
+    static func hasAwakeExternalDisplay() -> Bool {
+        onlineDisplays().contains { CGDisplayIsBuiltin($0) == 0 && CGDisplayIsAsleep($0) == 0 }
+    }
+
+    static func builtInDisplayIsAwake() -> Bool {
+        onlineDisplays().contains { CGDisplayIsBuiltin($0) != 0 && CGDisplayIsAsleep($0) == 0 }
     }
 
     /// "displaysleep" from the active power settings (`pmset -g`), in minutes; 0 means never.

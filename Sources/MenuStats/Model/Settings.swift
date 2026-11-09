@@ -390,6 +390,16 @@ final class Settings: ObservableObject {
     @Published var hiddenSections: Set<PanelSection> { didSet { save(hiddenSections.map(\.rawValue), "hiddenSections") } }
     @Published var appearanceMode: AppearanceMode { didSet { save(appearanceMode.rawValue, "appearanceMode") } }
     @Published var panelBackground: PanelBackground { didSet { save(panelBackground.rawValue, "panelBackground") } }
+    /// The color preset chosen in Settings ▸ Generali (nil: none chosen yet, the built-in colors).
+    @Published var colorPreset: String? {
+        didSet { if let colorPreset { save(colorPreset, "colorPreset") } else { defaults.removeObject(forKey: "colorPreset") } }
+    }
+    /// `colorFingerprint` right after applying the preset, to tell when a color was edited afterwards.
+    @Published var colorPresetFingerprint: String { didSet { save(colorPresetFingerprint, "colorPresetFingerprint") } }
+    /// Menu bar values take only the width they need now (off: the widest they can get, so nothing ever moves).
+    @Published var menubarDynamicWidth: Bool { didSet { save(menubarDynamicWidth, "menubarDynamicWidth") } }
+    /// Points between two modules in the single menu bar item.
+    @Published var menubarSpacing: Double { didSet { save(menubarSpacing, "menubarSpacing") } }
     /// Dropdown colors picked in Settings, per tab and palette role (see `DashboardTab.colorRoles`); a missing entry
     /// keeps the built-in palette. Network and disk keep their two main colors in `graphSeriesColors` instead.
     @Published var panelColors: [DashboardTab: [Int: String]] {
@@ -535,6 +545,10 @@ final class Settings: ObservableObject {
         hiddenSections = Set((defaults.stringArray(forKey: "hiddenSections") ?? []).compactMap(PanelSection.init(rawValue:)))
         appearanceMode = string("appearanceMode", AppearanceMode.system)
         panelBackground = string("panelBackground", PanelBackground.solid)
+        menubarDynamicWidth = bool("menubarDynamicWidth", true)
+        colorPreset = defaults.string(forKey: "colorPreset")
+        colorPresetFingerprint = defaults.string(forKey: "colorPresetFingerprint") ?? ""
+        menubarSpacing = double("menubarSpacing", 8)
         // Before 1.13 one color per tab ("tabColors") replaced only its main palette role.
         let legacyTabColors = (defaults.dictionary(forKey: "tabColors") as? [String: String] ?? [:])
             .compactMap { key, value in DashboardTab(rawValue: key).map { ($0, value) } }
