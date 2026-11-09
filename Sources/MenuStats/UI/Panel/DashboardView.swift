@@ -160,7 +160,7 @@ struct DashboardContent: View {
     }
 
     @ViewBuilder private var content: some View {
-        let _ = Palette.override = model.settings.customColor(for: state.tab).map { (state.tab.primaryColorIndex, $0) }
+        let _ = Palette.tab = state.tab
         switch state.tab {
         case .cpu: CPUTab(model: model)
         case .memory: MemoryTab(model: model)
@@ -184,13 +184,17 @@ struct DashboardContent: View {
                     ForEach(AppearanceMode.allCases) { Label($0.label, systemImage: $0.symbol).tag($0) }
                 }
                 .pickerStyle(.inline)
+                Picker("Sfondo", selection: Binding(get: { model.settings.panelBackground }, set: { model.settings.panelBackground = $0 })) {
+                    ForEach(PanelBackground.allCases) { Text($0.label).tag($0) }
+                }
+                .pickerStyle(.inline)
             } label: {
                 Image(systemName: model.settings.appearanceMode.symbol)
             }
             .menuStyle(.borderlessButton)
             .menuIndicator(.hidden)
             .fixedSize()
-            .help("Aspetto: chiaro, scuro, normale o automatico")
+            .help("Aspetto e sfondo della tendina")
             Button(action: openSettings) { Image(systemName: "gearshape") }.help("Impostazioni…")
             Button(action: quit) { Image(systemName: "power") }.help("Esci da MenuStats")
         }

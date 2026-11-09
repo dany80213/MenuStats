@@ -69,7 +69,7 @@ final class SystemMonitor {
         // Process lists, volumes and the full sensor scan exist only in their dropdown sections.
         // (The network tab needs the process list to name nettop's apps.)
         let wantsProcesses = demand.shows(.cpuProcesses) || demand.shows(.memoryProcesses)
-            || demand.shows(.diskProcesses) || demand.shows(.networkApps)
+            || demand.shows(.diskProcesses) || demand.shows(.networkApps) || demand.shows(.batteryApps)
         if demand.shows(.diskVolumes), now - volumesTime > 10 {
             volumes = VolumeReader.sample()
             volumesTime = now

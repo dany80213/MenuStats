@@ -576,6 +576,16 @@ struct BatteryTab: View {
                         .hideable(.batteryCharts)
                     }
                 }
+                if settings.shows(.batteryApps) {
+                    let apps = ProcessGrouping.groups(snapshot.processes, byApp: settings.groupProcessesByApp)
+                    let total = apps.reduce(0) { $0 + $1.power }
+                    Card(title: "App che consumano di più", trailing: total > 0 ? String(format: "%.1f W in tutto", total) : nil) {
+                        ProcessList(rows: apps, count: settings.processCount, value: \.power,
+                                    label: { Format.processPower($0.power) }, color: Palette.color(3),
+                                    emptyText: "Nessuna app consuma in modo rilevante")
+                    }
+                    .hideable(.batteryApps)
+                }
                 if settings.shows(.batteryHealth) {
                 Card(title: "Salute") {
                     StatGrid(items: [

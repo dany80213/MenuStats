@@ -12,6 +12,8 @@ struct ProcessUsage {
     var memory: UInt64
     var diskReadRate: Double
     var diskWriteRate: Double
+    /// Watts, from the energy macOS counts for each process (CPU and GPU work it causes).
+    var power: Double = 0
 }
 
 /// Per-process CPU, memory and disk I/O from proc_pid_rusage.
@@ -21,6 +23,7 @@ final class ProcessReader {
         var cpuNanoseconds: UInt64
         var bytesRead: UInt64
         var bytesWritten: UInt64
+        var energyNanojoules: UInt64
     }
 
     /// Screenshot runs (`--render-ui`) hide themselves: rendering is CPU-heavy and isn't what the app costs.
@@ -49,7 +52,8 @@ final class ProcessReader {
             let counters = Counters(
                 cpuNanoseconds: (usage.ri_user_time + usage.ri_system_time) * timebase.numer / timebase.denom,
                 bytesRead: usage.ri_diskio_bytesread,
-                bytesWritten: usage.ri_diskio_byteswritten
+                bytesWritten: usage.ri_diskio_byteswritten,
+                energyNanojoules: usage.ri_energy_nj
             )
             current[pid] = counters
 
@@ -60,10 +64,12 @@ final class ProcessReader {
                 process.cpu = Double(counters.cpuNanoseconds &- old.cpuNanoseconds) / 1e9 / elapsed
                 process.diskReadRate = Double(counters.bytesRead &- old.bytesRead) / elapsed
                 process.diskWriteRate = Double(counters.bytesWritten &- old.bytesWritten) / elapsed
+                process.power = Double(counters.energyNanojoules &- old.energyNanojoules) / 1e9 / elapsed
                 // A reused PID shows up as counters going backwards.
                 if counters.cpuNanoseconds < old.cpuNanoseconds { process.cpu = 0 }
                 if counters.bytesRead < old.bytesRead { process.diskReadRate = 0 }
                 if counters.bytesWritten < old.bytesWritten { process.diskWriteRate = 0 }
+                if counters.energyNanojoules < old.energyNanojoules { process.power = 0 }
             }
             result.append(process)
         }
@@ -81,11 +87,12 @@ final class ProcessReader {
         return count > 0 ? Array(pids.prefix(Int(count))) : []
     }
 
-    private func rusage(of pid: pid_t) -> rusage_info_v4? {
-        var info = rusage_info_v4()
+    /// Version 6 (macOS 12+) adds the energy counter.
+    private func rusage(of pid: pid_t) -> rusage_info_v6? {
+        var info = rusage_info_v6()
         let result = withUnsafeMutablePointer(to: &info) {
             $0.withMemoryRebound(to: rusage_info_t?.self, capacity: 1) {
-                proc_pid_rusage(pid, RUSAGE_INFO_V4, $0)
+                proc_pid_rusage(pid, RUSAGE_INFO_V6, $0)
             }
         }
         return result == 0 ? info : nil

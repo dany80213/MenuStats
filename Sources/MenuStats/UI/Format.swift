@@ -60,6 +60,12 @@ enum Format {
         String(format: value < 10 ? "%.1f W" : "%.0f W", value)
     }
 
+    /// A process's power draw, like the other process columns: "0.8 W", "12 W"; under 0.05 W "<0.1 W".
+    static func processPower(_ watts: Double) -> String {
+        if watts < 0.05 { return "<0.1 W" }
+        return watts < 10 ? String(format: "%.1f W", watts) : String(format: "%.0f W", watts)
+    }
+
     static func duration(minutes: Int) -> String {
         String(format: "%d:%02d", minutes / 60, minutes % 60)
     }

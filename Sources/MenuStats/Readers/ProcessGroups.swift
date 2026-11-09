@@ -13,6 +13,8 @@ struct ProcessGroup: Identifiable {
     var diskWrite: Double
     var networkDown: Double = 0
     var networkUp: Double = 0
+    /// Watts.
+    var power: Double = 0
 }
 
 enum ProcessGrouping {
@@ -39,6 +41,7 @@ enum ProcessGrouping {
             group.memory += process.memory
             group.diskRead += process.diskReadRate
             group.diskWrite += process.diskWriteRate
+            group.power += process.power
             groups[key] = group
         }
         return Array(groups.values)

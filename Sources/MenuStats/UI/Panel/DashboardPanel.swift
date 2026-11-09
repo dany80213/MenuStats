@@ -51,6 +51,20 @@ final class DashboardPanelController {
         background.wantsLayer = true
         background.layer?.cornerRadius = Self.cornerRadius
         background.layer?.masksToBounds = true
+        // "Pieno": an opaque layer over the material, white or near black with the window's appearance.
+        let solid = SolidPanelBackground()
+        solid.translatesAutoresizingMaskIntoConstraints = false
+        background.addSubview(solid)
+        NSLayoutConstraint.activate([
+            solid.leadingAnchor.constraint(equalTo: background.leadingAnchor),
+            solid.trailingAnchor.constraint(equalTo: background.trailingAnchor),
+            solid.topAnchor.constraint(equalTo: background.topAnchor),
+            solid.bottomAnchor.constraint(equalTo: background.bottomAnchor),
+        ])
+        model.settings.$panelBackground
+            .receive(on: RunLoop.main)
+            .sink { solid.isHidden = $0 != .solid }
+            .store(in: &cancellables)
         hosting.translatesAutoresizingMaskIntoConstraints = false
         background.addSubview(hosting)
         NSLayoutConstraint.activate([
@@ -148,5 +162,31 @@ final class DashboardPanelController {
         }) {
             monitors.append(local)
         }
+    }
+}
+
+/// The dropdown's solid background ("Pieno"): redrawn when the appearance changes between light and dark.
+final class SolidPanelBackground: NSView {
+    override var wantsUpdateLayer: Bool { true }
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        wantsLayer = true
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+
+    static func color(dark: Bool) -> NSColor {
+        dark ? NSColor(srgbRed: 0.118, green: 0.118, blue: 0.125, alpha: 1) : NSColor(srgbRed: 0.98, green: 0.98, blue: 0.98, alpha: 1)
+    }
+
+    override func updateLayer() {
+        let dark = effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        layer?.backgroundColor = Self.color(dark: dark).cgColor
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        needsDisplay = true
     }
 }

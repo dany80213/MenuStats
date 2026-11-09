@@ -99,6 +99,15 @@ struct DateTab: View {
                         ForEach(events) { EventRow(event: $0, use24Hour: settings.use24Hour) }
                     }
                 }
+                if focusFilter.status == .noPermission {
+                    Button { FocusCalendarFilter.openFullDiskAccessSettings() } label: {
+                        Label("Per seguire la full immersion MenuStats ha bisogno dell'Accesso completo al disco", systemImage: "lock.fill")
+                            .multilineTextAlignment(.leading).fixedSize(horizontal: false, vertical: true)
+                    }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 10.5)).foregroundStyle(.orange)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
                 if case .active(let active) = focusFilter.status, active.calendars != nil {
                     Label("\(active.name): solo i calendari del suo filtro", systemImage: "moon.fill")
                         .font(.system(size: 10.5)).foregroundStyle(.secondary)

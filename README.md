@@ -75,7 +75,7 @@ meteo, data e un modulo per tenere il Mac sveglio. Compatto, preciso e leggero.
 | **Rete** | upload/download, totale, **grafici doppi** upload/download | traffico, connessione, **IP pubblico e VPN** con bandiera, app che usano la rete |
 | **Temperature** | CPU (media dei core), massima, SSD, batteria | ogni core della CPU e della GPU, SoC, SSD, stato termico |
 | **Ventole** | giri, percentuale, solo icona animata | velocità, controllo **Automatico / Personalizzato**, consumo del sistema |
-| **Batteria** | percentuale, nell'icona, tempo, percentuale e tempo, watt | carica, salute ufficiale Apple, cicli, potenza, **limite di carica**, basso consumo |
+| **Batteria** | percentuale, nell'icona, tempo, percentuale e tempo, watt | carica, **app che consumano di più** (in watt), salute ufficiale Apple, cicli, potenza, **limite di carica**, basso consumo |
 | **Meteo** · *facoltativo* | icona + temperatura | condizioni attuali, prossime 24 ore, 7 giorni con barre min/max |
 | **Data e ora** · *facoltativo* | 9 disposizioni, anche **icona calendario** con giorno e mese, 12/24 ore | calendario del mese con i tuoi **impegni**, prossimo impegno, alba e tramonto |
 | **Sveglio** · *facoltativo* | tazza con vapore, tempo rimanente | durata, durata personalizzata, finché un file si scarica, un'app è aperta o un'IA lavora; schermo acceso o libero, fine con batteria scarica |
@@ -119,7 +119,8 @@ usare, e c'è **Prova avviso**. Gli impegni restano sul Mac: nessun dato esce.
 MenuStats lo rispetta: mentre quella full immersion è attiva, la scheda Data e gli avvisi mostrano solo i calendari
 che il filtro lascia passare, e quando finisce torna la tua scelta solita. Non devi rifare nulla in MenuStats. macOS
 tiene queste impostazioni protette, quindi serve l'**Accesso completo al disco** (Privacy e sicurezza): MenuStats le
-legge soltanto. Si spegne in Impostazioni ▸ Data e ora.
+legge soltanto. Si spegne in Impostazioni ▸ Data e ora. Se il permesso manca, la scheda Data lo segnala con un
+pulsante che apre la pagina giusta.
 
 ## 📈 Grafici di rete e disco
 
@@ -175,7 +176,10 @@ Un file scaricato dall'app non ha il flag di quarantena, quindi macOS non chiede
 
 - **Stile per modulo**, con anteprima dal vivo in chiaro e scuro.
 - **Ordine e moduli**: trascina per riordinare, attiva solo quelli che ti servono.
-- **Colori di allerta** automatici, oppure un colore a scelta per ogni modulo.
+- **Colori di allerta** automatici, un colore a scelta per l'icona di ogni modulo e **ogni colore della tendina**
+  modificabile (in CPU sia Utente che Sistema). Rete e disco usano gli stessi colori nella barra e nella tendina.
+- **Aspetto**: come macOS, chiaro, scuro o alba e tramonto; tendina con **sfondo pieno** (leggibile su qualsiasi
+  sfondo) o trasparente.
 - **Icone dinamiche** attivabili o disattivabili.
 - **Sezioni della tendina** da nascondere, dalle Impostazioni o con clic destro.
   Una sezione nascosta non viene nemmeno misurata.

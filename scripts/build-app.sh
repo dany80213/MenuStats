@@ -12,6 +12,12 @@ VERSION="${VERSION:-1.0.0}"
 BUILD_NUMBER="${BUILD_NUMBER:-1}"
 # Optional: SIGN_IDENTITY="Developer ID Application: …" ./scripts/build-app.sh (default: ad hoc).
 IDENTITY="${SIGN_IDENTITY:--}"
+# The app itself can be signed with a stable certificate (APP_SIGN_IDENTITY, its SHA-1, and APP_SIGN_KEYCHAIN):
+# macOS then keeps the permissions granted to MenuStats (Full Disk Access for the Focus filters) across updates.
+# Ad hoc, every build is a new app to macOS and the permission is lost at each update.
+APP_IDENTITY="${APP_SIGN_IDENTITY:-$IDENTITY}"
+APP_KEYCHAIN_ARGS=()
+[[ -n "${APP_SIGN_KEYCHAIN:-}" ]] && APP_KEYCHAIN_ARGS=(--keychain "$APP_SIGN_KEYCHAIN")
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Library/LaunchDaemons" "$APP/Contents/Resources"
 cp .build/release/MenuStats "$APP/Contents/MacOS/MenuStats"
@@ -120,5 +126,5 @@ done
 # Inner code first: the helper and the widgets, then the app (whose signature seals them and the plist).
 codesign --force --options runtime --sign "$IDENTITY" --identifier local.menustats.helper "$APP/Contents/MacOS/MenuStatsHelper"
 codesign --force --options runtime --sign "$IDENTITY" --entitlements scripts/widgets.entitlements "$APPEX"
-codesign --force --sign "$IDENTITY" "$APP"
+codesign --force "${APP_KEYCHAIN_ARGS[@]}" --sign "$APP_IDENTITY" "$APP"
 echo "Creato $APP"

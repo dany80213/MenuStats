@@ -15,11 +15,21 @@ enum Palette {
     ]
     static let neutral = Color.primary.opacity(0.18)
 
-    /// Set by the dropdown while a tab with a "Personalizza colore" choice is on screen: replaces that tab's main color.
-    static var override: (index: Int, color: Color)?
+    /// The tab the dropdown is drawing: `color(_:)` resolves the roles with that tab's colors from Settings.
+    static var tab: DashboardTab?
 
     static func color(_ index: Int) -> Color {
-        if let override, override.index == index { return override.color }
+        guard let tab else { return builtIn(index, tab: nil) }
+        return color(index, in: tab)
+    }
+
+    static func color(_ index: Int, in tab: DashboardTab) -> Color {
+        Settings.shared.panelColorHex(tab, index).flatMap(NSColor.init(hex:)).map(Color.init(nsColor:)) ?? builtIn(index, tab: tab)
+    }
+
+    /// The color a role has until the user changes it (the map pin is red, as in Maps).
+    static func builtIn(_ index: Int, tab: DashboardTab?) -> Color {
+        if tab == .map && index == 4 { return .red }
         return series[index % series.count]
     }
 

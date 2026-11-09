@@ -98,8 +98,43 @@ enum DashboardTab: String, CaseIterable, Identifiable {
         }
     }
 
-    /// The palette step a tab uses for its main color, so "Personalizza colore" can replace it.
-    var primaryColorIndex: Int { self == .battery ? 2 : 0 }
+    /// The palette role of the tab's main color (its icon in the dropdown's tab bar, the map pin).
+    var primaryColorIndex: Int {
+        switch self {
+        case .battery: 2
+        case .awake: 3
+        case .map: 4
+        default: 0
+        }
+    }
+
+    /// Every color the tab draws with, by palette role, as Settings lists them. A role is a slot of the palette:
+    /// all the tab's elements with that role change together.
+    var colorRoles: [(index: Int, name: String)] {
+        switch self {
+        case .cpu: [(0, "Utente e core prestazioni"), (1, "Sistema"), (2, "Core efficienza"), (3, "GPU")]
+        case .memory: [(0, "App e memoria usata"), (1, "Wired e swap"), (2, "Compressa"), (3, "Cache")]
+        case .disk: [(0, "Lettura e spazio usato"), (1, "Scrittura"), (3, "Eliminabile")]
+        case .network: [(0, "Download"), (1, "Upload")]
+        case .sensors: [(0, "CPU"), (1, "SSD e mappa del calore"), (2, "Ventole"), (3, "Consumo")]
+        case .battery: [(2, "Carica e dispositivi"), (3, "Potenza e app")]
+        case .weather: [(0, "Accento")]
+        case .date: [(0, "Oggi e prossimo impegno"), (1, "Giorni con impegni")]
+        case .awake: [(3, "Sessione attiva")]
+        case .map: [(4, "Questo Mac"), (0, "Dispositivi vicini"), (2, "Dispositivi collegati")]
+        }
+    }
+
+    /// Network and disk share their two main colors with the menu bar graphs: one setting, the same color everywhere.
+    func graphSeries(role: Int) -> GraphSeries? {
+        switch (self, role) {
+        case (.network, 0): .download
+        case (.network, 1): .upload
+        case (.disk, 0): .read
+        case (.disk, 1): .write
+        default: nil
+        }
+    }
 
     /// Optional tabs only appear while their module is enabled.
     var isOptional: Bool { self == .weather || self == .date || self == .awake }
@@ -113,7 +148,7 @@ enum PanelSection: String, CaseIterable, Identifiable, Codable {
     case diskVolumes, diskChart, diskProcesses
     case networkChart, networkConnection, networkPublic, networkApps
     case sensorsChart, sensorsFans, sensorsGrid
-    case batteryCharts, batteryHealth, batteryPower, batteryControls
+    case batteryCharts, batteryApps, batteryHealth, batteryPower, batteryControls
 
     var id: String { rawValue }
 
@@ -137,6 +172,7 @@ enum PanelSection: String, CaseIterable, Identifiable, Codable {
         case .sensorsFans: "Ventole e alimentazione"
         case .sensorsGrid: "Elenco sensori"
         case .batteryCharts: "Grafici carica e potenza"
+        case .batteryApps: "App che consumano di più"
         case .batteryHealth: "Salute"
         case .batteryPower: "Alimentazione"
         case .batteryControls: "Controlli"
@@ -146,7 +182,7 @@ enum PanelSection: String, CaseIterable, Identifiable, Codable {
     /// What hiding it saves, shown in Settings.
     var saving: String? {
         switch self {
-        case .cpuProcesses, .memoryProcesses, .diskProcesses: "non elenca i processi"
+        case .cpuProcesses, .memoryProcesses, .diskProcesses, .batteryApps: "non elenca i processi"
         case .networkApps: "non avvia nettop"
         case .networkPublic: "non cerca l'IP pubblico né la VPN"
         case .sensorsGrid: "non legge tutti i sensori né la GPU"
@@ -163,7 +199,7 @@ enum PanelSection: String, CaseIterable, Identifiable, Codable {
         case .diskVolumes, .diskChart, .diskProcesses: .disk
         case .networkChart, .networkConnection, .networkPublic, .networkApps: .network
         case .sensorsChart, .sensorsFans, .sensorsGrid: .sensors
-        case .batteryCharts, .batteryHealth, .batteryPower, .batteryControls: .battery
+        case .batteryCharts, .batteryApps, .batteryHealth, .batteryPower, .batteryControls: .battery
         }
     }
 
@@ -303,10 +339,19 @@ enum IconAnimation: String, StyleOption {
 }
 
 /// Look of MenuStats' own windows (dropdown and Settings). The menu bar keeps following macOS.
+/// "Come macOS" follows System Settings ▸ Appearance (itself light, dark or automatic); "Alba e tramonto" is
+/// MenuStats' own schedule: dark from sunset to sunrise of the Weather city (20:00–7:00 without Weather).
 enum AppearanceMode: String, StyleOption {
     case system, light, dark, automatic
-    var label: String { ["Normale", "Chiara", "Scura", "Automatica"][Self.allCases.firstIndex(of: self)!] }
+    var label: String { ["Come macOS", "Chiara", "Scura", "Alba e tramonto"][Self.allCases.firstIndex(of: self)!] }
     var symbol: String { ["circle.lefthalf.filled", "sun.max", "moon", "clock"][Self.allCases.firstIndex(of: self)!] }
+}
+
+/// The dropdown's background: macOS's translucent material, or a solid color that keeps text readable on any
+/// wallpaper or window behind it.
+enum PanelBackground: String, StyleOption {
+    case solid, translucent
+    var label: String { ["Pieno", "Trasparente"][Self.allCases.firstIndex(of: self)!] }
 }
 
 enum TemperatureUnit: String, StyleOption {
@@ -344,9 +389,15 @@ final class Settings: ObservableObject {
     @Published var showVPN: Bool { didSet { save(showVPN, "showVPN") } }
     @Published var hiddenSections: Set<PanelSection> { didSet { save(hiddenSections.map(\.rawValue), "hiddenSections") } }
     @Published var appearanceMode: AppearanceMode { didSet { save(appearanceMode.rawValue, "appearanceMode") } }
-    /// Colors picked with "Personalizza colore"; a tab without an entry keeps the built-in palette.
-    @Published var tabColors: [DashboardTab: String] {
-        didSet { save(Dictionary(uniqueKeysWithValues: tabColors.map { ($0.key.rawValue, $0.value) }), "tabColors") }
+    @Published var panelBackground: PanelBackground { didSet { save(panelBackground.rawValue, "panelBackground") } }
+    /// Dropdown colors picked in Settings, per tab and palette role (see `DashboardTab.colorRoles`); a missing entry
+    /// keeps the built-in palette. Network and disk keep their two main colors in `graphSeriesColors` instead.
+    @Published var panelColors: [DashboardTab: [Int: String]] {
+        didSet {
+            save(Dictionary(uniqueKeysWithValues: panelColors.map { tab, roles in
+                (tab.rawValue, Dictionary(uniqueKeysWithValues: roles.map { (String($0.key), $0.value) }))
+            }), "panelColors")
+        }
     }
     /// Narrow menu bar (no labels, only the first modules), so macOS 27 is less likely to hide it next to the notch.
     @Published var compactMenubar: Bool { didSet { save(compactMenubar, "compactMenubar") } }
@@ -483,8 +534,18 @@ final class Settings: ObservableObject {
         showVPN = bool("showVPN", true)
         hiddenSections = Set((defaults.stringArray(forKey: "hiddenSections") ?? []).compactMap(PanelSection.init(rawValue:)))
         appearanceMode = string("appearanceMode", AppearanceMode.system)
-        let savedTabColors = defaults.dictionary(forKey: "tabColors") as? [String: String] ?? [:]
-        tabColors = Dictionary(uniqueKeysWithValues: savedTabColors.compactMap { key, value in DashboardTab(rawValue: key).map { ($0, value) } })
+        panelBackground = string("panelBackground", PanelBackground.solid)
+        // Before 1.13 one color per tab ("tabColors") replaced only its main palette role.
+        let legacyTabColors = (defaults.dictionary(forKey: "tabColors") as? [String: String] ?? [:])
+            .compactMap { key, value in DashboardTab(rawValue: key).map { ($0, value) } }
+        if let saved = defaults.dictionary(forKey: "panelColors") as? [String: [String: String]] {
+            panelColors = Dictionary(uniqueKeysWithValues: saved.compactMap { key, roles in
+                DashboardTab(rawValue: key).map { tab in (tab, Dictionary(uniqueKeysWithValues: roles.compactMap { role, hex in Int(role).map { ($0, hex) } })) }
+            })
+        } else {
+            panelColors = Dictionary(uniqueKeysWithValues: legacyTabColors.filter { $0.0.graphSeries(role: $0.0.primaryColorIndex) == nil }
+                .map { tab, hex in (tab, [tab.primaryColorIndex: hex]) })
+        }
         compactMenubar = bool("compactMenubar", false)
         compactModuleCount = defaults.object(forKey: "compactModuleCount") as? Int ?? 3
         pinNearClock = bool("pinNearClock", true)
@@ -510,9 +571,13 @@ final class Settings: ObservableObject {
         calendarAlertRepeatMinutes = defaults.object(forKey: "calendarAlertRepeatMinutes") as? Int ?? 2
         calendarAlertAtStart = bool("calendarAlertAtStart", true)
         let savedGraphColors = defaults.dictionary(forKey: "graphSeriesColors") as? [String: String] ?? [:]
-        graphSeriesColors = Dictionary(uniqueKeysWithValues: GraphSeries.allCases.map { series in
+        var graphSeries = Dictionary(uniqueKeysWithValues: GraphSeries.allCases.map { series in
             (series, savedGraphColors[series.rawValue] ?? GraphSeries.defaultColors[series]!)
         })
+        if defaults.object(forKey: "panelColors") == nil {
+            for (tab, hex) in legacyTabColors { if let series = tab.graphSeries(role: tab.primaryColorIndex) { graphSeries[series] = hex } }
+        }
+        graphSeriesColors = graphSeries
         sensorSource = string("sensorSource", SensorSource.cpuAverage)
         fanStyle = string("fanStyle", FanStyle.rpm)
         batteryStyle = string("batteryStyle", BatteryStyle.percent)
@@ -575,9 +640,32 @@ final class Settings: ObservableObject {
         NSColor(hex: moduleColors[module] ?? "") ?? NSColor(hex: Settings.defaultColors[module]!)!
     }
 
-    /// The custom color of a dashboard tab, if the user picked one.
+    /// The color picked for one role of a tab; nil keeps the built-in one.
+    func panelColorHex(_ tab: DashboardTab, _ role: Int) -> String? {
+        if let series = tab.graphSeries(role: role) { return graphSeriesColors[series] }
+        return panelColors[tab]?[role]
+    }
+
+    func isCustomPanelColor(_ tab: DashboardTab, _ role: Int) -> Bool {
+        if let series = tab.graphSeries(role: role) { return graphSeriesColors[series] != GraphSeries.defaultColors[series] }
+        return panelColors[tab]?[role] != nil
+    }
+
+    /// nil restores the built-in color.
+    func setPanelColor(_ hex: String?, tab: DashboardTab, role: Int) {
+        if let series = tab.graphSeries(role: role) {
+            graphSeriesColors[series] = hex ?? GraphSeries.defaultColors[series]
+            return
+        }
+        var roles = panelColors[tab] ?? [:]
+        roles[role] = hex
+        panelColors[tab] = roles.isEmpty ? nil : roles
+    }
+
+    /// The tab's main color when the user changed it (tab bar icon, map pin).
     func customColor(for tab: DashboardTab) -> Color? {
-        tabColors[tab].flatMap(NSColor.init(hex:)).map(Color.init(nsColor:))
+        guard isCustomPanelColor(tab, tab.primaryColorIndex) else { return nil }
+        return panelColorHex(tab, tab.primaryColorIndex).flatMap(NSColor.init(hex:)).map(Color.init(nsColor:))
     }
 
     /// Enabled modules in the user's order.

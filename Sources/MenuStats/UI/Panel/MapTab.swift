@@ -108,7 +108,7 @@ struct MapTab: View {
             if #available(macOS 14, *) {
                 Map(initialPosition: .region(region)) {
                     Marker("Questo Mac", systemImage: "laptopcomputer", coordinate: coordinate)
-                        .tint(settings.customColor(for: .map) ?? .red)
+                        .tint(Palette.color(4, in: .map))
                 }
                 .id(coordinate.latitude + coordinate.longitude)
             } else {

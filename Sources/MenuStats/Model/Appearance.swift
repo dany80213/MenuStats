@@ -42,6 +42,17 @@ final class AppearanceController {
         return hour >= 20 || hour < 7
     }
 
+    /// What "Alba e tramonto" does today, for Settings: "Scura dalle 17:02 alle 7:05 (alba e tramonto di Roma)".
+    static func scheduleDescription(today: WeatherReport.Day?, now: Date) -> String {
+        let night = isNight(at: now, today: today) ? "Ora è scura" : "Ora è chiara"
+        if let sunrise = today?.sunrise, let sunset = today?.sunset, Calendar.current.isDate(sunrise, inSameDayAs: now) {
+            let format = DateFormatter()
+            format.dateFormat = "HH:mm"
+            return "\(night): scura dal tramonto (\(format.string(from: sunset))) all'alba (\(format.string(from: sunrise))), orari del Meteo."
+        }
+        return "\(night): scura dalle 20:00 alle 7:00 (accendi il Meteo per usare alba e tramonto veri)."
+    }
+
     func apply() {
         let appearance = current
         for window in NSApp.windows where !Self.isStatusBarWindow(window) {

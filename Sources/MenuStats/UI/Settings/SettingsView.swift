@@ -98,7 +98,7 @@ struct SettingsView: View {
 
     @ViewBuilder private var detail: some View {
         switch page ?? .general {
-        case .general: GeneralSettings(settings: settings)
+        case .general: GeneralSettings(settings: settings, today: model.weather.report?.today)
         case .menubar: MenubarSettings(model: model, snapshot: feed.snapshot, settings: settings)
         case .module(let module): ModuleSettings(module: module, model: model, snapshot: feed.snapshot, settings: settings)
         case .widgets: WidgetSettings(model: model)
@@ -183,12 +183,23 @@ struct StylePicker<Option: StyleOption>: View {
 
 struct GeneralSettings: View {
     @ObservedObject var settings: Settings
+    /// Sunrise and sunset for "Alba e tramonto", when the Weather module knows them.
+    var today: WeatherReport.Day? = nil
     @State private var loginEnabled = LoginItem.status == .enabled
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            SettingsSection(title: "Aspetto", footnote: "Vale per la tendina e per questa finestra; le icone nella barra dei menu seguono macOS. Normale segue macOS. Automatica passa a scura al tramonto e a chiara all'alba (orari del Meteo se acceso, altrimenti dalle 20 alle 7). Puoi cambiarlo anche dal pulsante in fondo alla tendina.") {
+            SettingsSection(title: "Aspetto", footnote: "Vale per la tendina e per questa finestra; le icone nella barra dei menu seguono macOS. Come macOS segue Impostazioni di Sistema ▸ Aspetto (anche quando lì è su Automatico). Alba e tramonto è l'orario di MenuStats: scura dal tramonto all'alba della città del Meteo, oppure dalle 20 alle 7 se il Meteo è spento. Sfondo pieno toglie la trasparenza, così le scritte restano leggibili su qualsiasi sfondo. Puoi cambiare entrambi anche dal pulsante in fondo alla tendina.") {
                 AppearancePicker(settings: settings)
+                Picker("Sfondo della tendina", selection: $settings.panelBackground) {
+                    ForEach(PanelBackground.allCases) { Text($0.label).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .frame(maxWidth: 320)
+                if settings.appearanceMode == .automatic {
+                    Text(AppearanceController.scheduleDescription(today: today, now: Date()))
+                        .font(.system(size: 11)).foregroundStyle(.secondary)
+                }
             }
             SettingsSection(title: "Aggiornamento") {
                 Picker("Intervallo di aggiornamento", selection: $settings.refreshInterval) {
@@ -270,7 +281,7 @@ struct SettingsBackupSection: View {
     }
 }
 
-/// Normale / Chiara / Scura / Automatica for MenuStats' windows.
+/// Come macOS / Chiara / Scura / Alba e tramonto for MenuStats' windows.
 struct AppearancePicker: View {
     @ObservedObject var settings: Settings
 
@@ -283,31 +294,27 @@ struct AppearancePicker: View {
     }
 }
 
-/// "Personalizza colore" for one dashboard tab (and the matching menu bar icon).
-struct TabColorPicker: View {
+/// Every color of one dropdown tab, one picker per palette role.
+struct PanelColorSettings: View {
     var tab: DashboardTab
-    var module: ModuleID?
     @ObservedObject var settings: Settings
 
     var body: some View {
-        HStack(spacing: 12) {
-            ColorPicker(selection: Binding(
-                get: { settings.customColor(for: tab) ?? Palette.series[tab.primaryColorIndex % Palette.series.count] },
-                set: { color in
-                    let hex = NSColor(color).hexString
-                    settings.tabColors[tab] = hex
-                    if let module { settings.moduleColors[module] = hex }
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 210), alignment: .leading)], alignment: .leading, spacing: 8) {
+            ForEach(tab.colorRoles, id: \.index) { role in
+                ColorPicker(selection: Binding(
+                    get: { Palette.color(role.index, in: tab) },
+                    set: { settings.setPanelColor(NSColor($0).hexString, tab: tab, role: role.index) }
+                ), supportsOpacity: false) {
+                    Text(role.name)
                 }
-            ), supportsOpacity: false) {
-                Label("Personalizza colore", systemImage: "paintpalette")
             }
-            if settings.tabColors[tab] != nil {
-                Button("Ripristina") {
-                    settings.tabColors[tab] = nil
-                    if let module { settings.moduleColors[module] = Settings.defaultColors[module] }
-                }
-                .buttonStyle(.link)
+        }
+        if tab.colorRoles.contains(where: { settings.isCustomPanelColor(tab, $0.index) }) {
+            Button("Ripristina i colori della scheda") {
+                for role in tab.colorRoles { settings.setPanelColor(nil, tab: tab, role: role.index) }
             }
+            .buttonStyle(.link)
         }
     }
 }
@@ -323,7 +330,7 @@ struct MapSettings: View {
             }
             NearbyDevicesSettings(settings: settings)
             SettingsSection(title: "Colore") {
-                TabColorPicker(tab: .map, settings: settings)
+                PanelColorSettings(tab: .map, settings: settings)
             }
         }
     }
@@ -554,6 +561,14 @@ struct ModuleSettings: View {
         }
     }
 
+    private var colorFootnote: String {
+        var text = "I colori della scheda \(module.tab.title) nella tendina: grafici, barre e icone."
+        if module == .network || module == .disk {
+            text += " \(module == .network ? "Download e upload" : "Lettura e scrittura") sono gli stessi dei grafici nella barra dei menu."
+        }
+        return text + " Il colore della voce nella barra dei menu si sceglie sopra, con «Colora l'icona»."
+    }
+
     private var moduleBody: some View {
         VStack(alignment: .leading, spacing: 0) {
             SettingsSection(title: "Barra dei menu") {
@@ -569,8 +584,8 @@ struct ModuleSettings: View {
                 }
             }
             SettingsSection(title: "Stile") { stylePicker }
-            SettingsSection(title: "Colore", footnote: "Il colore principale della scheda \(module.tab.title) nella tendina (grafici, barre e icona della scheda) e, con \"Colora l'icona\", della voce nella barra dei menu.") {
-                TabColorPicker(tab: module.tab, module: module, settings: settings)
+            SettingsSection(title: "Colori nella tendina", footnote: colorFootnote) {
+                PanelColorSettings(tab: module.tab, settings: settings)
             }
             let sections = PanelSection.allCases.filter { $0.module == module }
             if !sections.isEmpty {
@@ -787,7 +802,7 @@ struct WeatherPlaceSettings: View {
 
     private func placeRow(_ place: WeatherLocation, trailing: AnyView) -> some View {
         HStack {
-            Image(systemName: "location.fill").foregroundStyle(Palette.color(0))
+            Image(systemName: "location.fill").foregroundStyle(Palette.color(4, in: .map))
             VStack(alignment: .leading, spacing: 1) {
                 Text(place.name).font(.system(size: 13, weight: .semibold))
                 if !place.detail.isEmpty { Text(place.detail).font(.system(size: 11)).foregroundStyle(.secondary) }

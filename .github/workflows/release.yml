@@ -19,6 +19,9 @@ concurrency:
 jobs:
   release:
     runs-on: macos-26
+    env:
+      # Optional stable signing certificate (base64 .p12 and its password), see scripts/make-signing-cert.sh.
+      HAS_SIGNING_CERT: ${{ secrets.MENUSTATS_SIGNING_P12 != '' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -36,6 +39,24 @@ jobs:
         if: steps.version.outputs.skip != 'true'
         run: ./scripts/test.sh
 
+      - name: Signing certificate
+        if: steps.version.outputs.skip != 'true' && env.HAS_SIGNING_CERT == 'true'
+        env:
+          P12: ${{ secrets.MENUSTATS_SIGNING_P12 }}
+          P12_PASSWORD: ${{ secrets.MENUSTATS_SIGNING_PASSWORD }}
+        run: |
+          KEYCHAIN="$RUNNER_TEMP/signing.keychain-db"
+          security create-keychain -p "" "$KEYCHAIN"
+          security set-keychain-settings "$KEYCHAIN"
+          security unlock-keychain -p "" "$KEYCHAIN"
+          echo "$P12" | base64 --decode > "$RUNNER_TEMP/signing.p12"
+          security import "$RUNNER_TEMP/signing.p12" -k "$KEYCHAIN" -P "$P12_PASSWORD" -T /usr/bin/codesign >/dev/null
+          security set-key-partition-list -S apple-tool:,apple: -s -k "" "$KEYCHAIN" >/dev/null
+          rm "$RUNNER_TEMP/signing.p12"
+          HASH=$(security find-certificate -c "MenuStats Self Signing" -Z "$KEYCHAIN" | awk '/SHA-1/{print $3}')
+          echo "APP_SIGN_IDENTITY=$HASH" >> "$GITHUB_ENV"
+          echo "APP_SIGN_KEYCHAIN=$KEYCHAIN" >> "$GITHUB_ENV"
+
       - name: Build
         if: steps.version.outputs.skip != 'true'
         env:
@@ -45,6 +66,7 @@ jobs:
           xcodebuild -version
           ./scripts/build-app.sh
           codesign --verify --deep --strict build/MenuStats.app
+          codesign -dr - build/MenuStats.app
           ditto -c -k --sequesterRsrc --keepParent build/MenuStats.app "MenuStats-$VERSION.zip"
 
       - name: Publish
