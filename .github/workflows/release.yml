@@ -53,9 +53,21 @@ jobs:
           security import "$RUNNER_TEMP/signing.p12" -k "$KEYCHAIN" -P "$P12_PASSWORD" -T /usr/bin/codesign >/dev/null
           security set-key-partition-list -S apple-tool:,apple: -s -k "" "$KEYCHAIN" >/dev/null
           rm "$RUNNER_TEMP/signing.p12"
+          # codesign looks for identities in the user's keychain list, and on recent macOS wants a self-signed
+          # certificate trusted for code signing.
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+          security find-certificate -c "MenuStats Self Signing" -p "$KEYCHAIN" > "$RUNNER_TEMP/signing.pem"
+          sudo security add-trusted-cert -d -r trustRoot -p codeSign -k /Library/Keychains/System.keychain "$RUNNER_TEMP/signing.pem"
+          security find-identity -p codesigning "$KEYCHAIN"
           HASH=$(security find-certificate -c "MenuStats Self Signing" -Z "$KEYCHAIN" | awk '/SHA-1/{print $3}')
-          echo "APP_SIGN_IDENTITY=$HASH" >> "$GITHUB_ENV"
-          echo "APP_SIGN_KEYCHAIN=$KEYCHAIN" >> "$GITHUB_ENV"
+          # A failed test signature must not block the release: it then ships ad hoc, as before.
+          cp /usr/bin/true "$RUNNER_TEMP/probe"
+          if codesign --force --keychain "$KEYCHAIN" --sign "$HASH" "$RUNNER_TEMP/probe"; then
+            echo "APP_SIGN_IDENTITY=$HASH" >> "$GITHUB_ENV"
+            echo "APP_SIGN_KEYCHAIN=$KEYCHAIN" >> "$GITHUB_ENV"
+          else
+            echo "::warning::Firma con il certificato non riuscita: la release è firmata ad hoc"
+          fi
 
       - name: Build
         if: steps.version.outputs.skip != 'true'
