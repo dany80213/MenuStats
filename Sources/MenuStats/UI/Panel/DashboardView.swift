@@ -4,6 +4,8 @@ final class DashboardState: ObservableObject {
     @Published var tab: DashboardTab = .cpu
     /// While the panel is closed the content isn't built, so it doesn't re-render (and query history) on every sample.
     @Published var visible = true
+    /// Tallest the scrolling content may be on the display the panel is on; nil uses the view's own limit.
+    @Published var maxContentHeight: CGFloat?
 }
 
 private struct ContentHeightKey: PreferenceKey {
@@ -24,7 +26,7 @@ struct DashboardView: View {
 
     var body: some View {
         if state.visible {
-            DashboardContent(model: model, state: state, maxContentHeight: maxContentHeight,
+            DashboardContent(model: model, state: state, maxContentHeight: state.maxContentHeight ?? maxContentHeight,
                              openSettings: openSettings, quit: quit, onLayoutChange: onLayoutChange)
         } else {
             Color.clear.frame(width: Self.width, height: 1)

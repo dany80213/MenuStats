@@ -109,11 +109,25 @@ final class DashboardPanelController {
         }
     }
 
+    /// Height of the panel besides its scrolling content (tabs, range picker, footer), with some margin.
+    private static let chromeHeight: CGFloat = 190
+
+    /// The display the panel opens on: the one holding the clicked status item.
+    private var screen: NSScreen? { NSScreen.screens.first { NSMouseInRect(anchor, $0.frame, false) } ?? NSScreen.main }
+
+    /// Room between the menu bar and the bottom of the display, fixed when the panel opens: the display it opens
+    /// on may not be the one the app started on, and a taller panel would run up over the menu bar.
+    private var availableHeight: CGFloat {
+        guard let visible = screen?.visibleFrame else { return 700 }
+        return max(anchor.y - 6 - (visible.minY + 6), 200)
+    }
+
     func show(tab: DashboardTab, anchor: NSPoint) {
         onShow()
         state.tab = tab
         state.visible = true
         self.anchor = anchor
+        state.maxContentHeight = max(availableHeight - Self.chromeHeight, 120)
         hosting.layoutSubtreeIfNeeded()
         fitToContent()
         if !panel.isVisible {
@@ -140,12 +154,13 @@ final class DashboardPanelController {
     private func fitToContent() {
         let size = hosting.fittingSize
         guard size.width > 0, size.height > 0 else { return }
-        let screen = NSScreen.screens.first { NSMouseInRect(anchor, $0.frame, false) } ?? NSScreen.main
         let visible = screen?.visibleFrame ?? .zero
         var x = anchor.x - size.width / 2
         x = min(max(x, visible.minX + 6), visible.maxX - size.width - 6)
-        let y = anchor.y - 6 - size.height
-        panel.setFrame(NSRect(x: x, y: max(y, visible.minY + 6), width: size.width, height: size.height), display: true)
+        // Never taller than the room under the menu bar, whatever the content asks for.
+        let height = min(size.height, availableHeight)
+        let y = anchor.y - 6 - height
+        panel.setFrame(NSRect(x: x, y: max(y, visible.minY + 6), width: size.width, height: height), display: true)
         panel.invalidateShadow()
     }
 
